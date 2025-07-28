@@ -11,7 +11,6 @@ resources:
   - service.yaml
   - hpa.yaml
   - networkpolicy.yaml
-  - poddisruptionbudget.yaml
   - backendconfig.yaml
 
 commonLabels:
