@@ -1,0 +1,70 @@
+name: Deploy to GKE
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/deploy-k8s.yml'
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches:
+      - main
+
+env:
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+        service_account: github-actions@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        install_components: 'gke-gcloud-auth-plugin'
+
+    - name: Configure kubectl
+      run: |
+        gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
+
+    - name: Create Brave Search MCP Secret
+      run: |
+        kubectl create secret generic brave-search-mcp-secrets \
+          --from-literal=brave-api-key="${{ secrets.BRAVE_API_KEY }}" \
+          --from-literal=allowed-origins="${{ secrets.ALLOWED_ORIGINS }}" \
+          --namespace=mcp \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy to GKE
+      run: |
+        cd k8s
+        kubectl apply -k .
+
+    - name: Verify deployment
+      run: |
+        kubectl rollout status deployment/brave-search-mcp -n mcp --timeout=600s
+
+    - name: Get service status
+      run: |
+        kubectl get services -n mcp -l app=brave-search-mcp
+        kubectl get ingress -n mcp || echo "No ingress configured"

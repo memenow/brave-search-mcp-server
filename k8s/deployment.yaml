@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brave-search-mcp
+  namespace: mcp
+  labels:
+    app: brave-search-mcp
+    project: brave-search-mcp
+    environment: production
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: brave-search-mcp
+  template:
+    metadata:
+      labels:
+        app: brave-search-mcp
+        project: brave-search-mcp
+        environment: production
+    spec:
+      serviceAccountName: brave-search-mcp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: brave-search-mcp
+        image: ghcr.io/memenow/brave-search-mcp:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: brave-search-mcp-config
+              key: NODE_ENV
+        - name: BRAVE_MCP_TRANSPORT
+          valueFrom:
+            configMapKeyRef:
+              name: brave-search-mcp-config
+              key: BRAVE_MCP_TRANSPORT
+        - name: BRAVE_MCP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: brave-search-mcp-config
+              key: BRAVE_MCP_PORT
+        - name: BRAVE_MCP_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: brave-search-mcp-config
+              key: BRAVE_MCP_HOST
+        - name: BRAVE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: brave-search-mcp-secrets
+              key: brave-api-key
+        - name: ALLOWED_ORIGINS
+          valueFrom:
+            secretKeyRef:
+              name: brave-search-mcp-secrets
+              key: allowed-origins
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "amd64"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - brave-search-mcp
+              topologyKey: kubernetes.io/hostname

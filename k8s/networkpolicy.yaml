@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: brave-search-mcp
+  namespace: mcp
+  labels:
+    app: brave-search-mcp
+    project: brave-search-mcp
+    environment: production
+spec:
+  podSelector:
+    matchLabels:
+      app: brave-search-mcp
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - namespaceSelector:
+        matchLabels:
+          name: mcp
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53  # DNS
+    - protocol: UDP
+      port: 53  # DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS for Brave API

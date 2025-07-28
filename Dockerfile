@@ -1,35 +1,73 @@
-FROM node:alpine@sha256:22b3c1a1171c798c0429f36272922dbb356bbab8a6d11b3b095a143d3321262a AS builder
+# Build stage
+FROM node:24-alpine AS builder
 
-# Update OpenSSL to fix CVE-2025-4575
-RUN apk add --no-cache openssl=3.5.1-r0
+# Add build arguments for metadata
+ARG VERSION=unknown
+ARG BUILD_DATE=unknown
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-COPY ./package.json ./package.json
-COPY ./package-lock.json ./package-lock.json
+# Copy package files
+COPY package*.json ./
 
+# Install all dependencies
 RUN npm ci --ignore-scripts
 
+# Copy source code
 COPY ./src ./src
 COPY ./tsconfig.json ./tsconfig.json
 
+# Build the application
 RUN npm run build
 
-FROM node:alpine@sha256:22b3c1a1171c798c0429f36272922dbb356bbab8a6d11b3b095a143d3321262a AS release
+# Production stage
+FROM node:24-alpine AS production
 
-# Update OpenSSL to fix CVE-2025-4575
-RUN apk add --no-cache openssl=3.5.1-r0
+# Add build arguments for metadata
+ARG VERSION=unknown
+ARG BUILD_DATE=unknown
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Use existing node user from base image
 
 WORKDIR /app
 
-COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/package-lock.json /app/package-lock.json
+# Copy built application and production dependencies
+COPY --from=builder --chown=node:node /app/package*.json ./
 
+# Install production dependencies only
+RUN npm ci --ignore-scripts --omit=dev && \
+    npm cache clean --force
+
+# Copy built application
+COPY --from=builder --chown=node:node /app/dist ./dist
+
+# Set environment variables
 ENV NODE_ENV=production
 
-RUN npm ci --ignore-scripts --omit-dev
+# Add metadata labels
+LABEL version=$VERSION \
+      build-date=$BUILD_DATE \
+      description="Brave Search MCP Server" \
+      org.opencontainers.image.source="https://github.com/memenow/brave-search-mcp-server"
 
+# Switch to non-root user
 USER node
 
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/ping', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); })"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Run the application
 CMD ["node", "dist/index.js"]
