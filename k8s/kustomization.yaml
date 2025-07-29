@@ -12,6 +12,7 @@ resources:
   - hpa.yaml
   - networkpolicy.yaml
   - backendconfig.yaml
+  - ingress.yaml
 
 commonLabels:
   project: brave-search-mcp

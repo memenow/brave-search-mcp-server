@@ -18,6 +18,7 @@ env:
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  INGRESS_HOST: ${{ secrets.INGRESS_HOST || 'mcp.example.com' }}
 
 jobs:
   deploy:
@@ -58,6 +59,10 @@ jobs:
     - name: Deploy to GKE
       run: |
         cd k8s
+        # Replace INGRESS_HOST placeholder with actual value
+        if [ -f ingress.yaml ]; then
+          sed -i "s/INGRESS_HOST/$INGRESS_HOST/g" ingress.yaml
+        fi
         kubectl apply -k .
 
     - name: Verify deployment
