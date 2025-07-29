@@ -9,6 +9,10 @@ metadata:
     networking.gke.io/managed-certificates: "brave-search-mcp-cert"
     kubernetes.io/ingress.allow-http: "false"
 spec:
+  tls:
+  - hosts:
+    - INGRESS_HOST
+    secretName: brave-search-mcp-cert-secret
   rules:
   - host: INGRESS_HOST
     http:
