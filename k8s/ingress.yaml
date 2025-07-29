@@ -5,7 +5,7 @@ metadata:
   namespace: mcp
   annotations:
     kubernetes.io/ingress.class: "gce"
-    kubernetes.io/ingress.global-static-ip-name: "brave-search-mcp-ip"
+    kubernetes.io/ingress.global-static-ip-name: "prod-autopilot-us-central-ip"
     networking.gke.io/managed-certificates: "brave-search-mcp-cert"
     kubernetes.io/ingress.allow-http: "false"
 spec:
