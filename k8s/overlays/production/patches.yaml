@@ -1,0 +1,18 @@
+# Production-specific patches
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brave-mcp
+spec:
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+        cloud.google.com/backend-config: '{"default": "brave-mcp-backend-config"}'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: brave-mcp
+  annotations:
+    cloud.google.com/backend-config: '{"default": "brave-mcp-backend-config"}'

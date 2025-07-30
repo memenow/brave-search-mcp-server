@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mcp
+
+resources:
+  - core/namespace.yaml
+  - core/configmap.yaml
+  - core/secret.yaml
+  - core/service-account.yaml
+  - core/api-deployment.yaml
+  - core/api-service.yaml
+  - network/network-policy.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/part-of: brave-search
+
+images:
+  - name: ghcr.io/memenow/brave-search-mcp
+    newTag: latest

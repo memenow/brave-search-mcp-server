@@ -1,17 +1,17 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: brave-search-mcp
+  name: brave-mcp-hpa
   namespace: mcp
   labels:
-    app: brave-search-mcp
-    project: brave-search-mcp
-    environment: production
+    app.kubernetes.io/name: brave-mcp
+    app.kubernetes.io/component: scaling
+    app.kubernetes.io/part-of: brave-search
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: brave-search-mcp
+    name: brave-mcp
   minReplicas: 3
   maxReplicas: 10
   metrics:

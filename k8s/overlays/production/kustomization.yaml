@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mcp
+
+resources:
+  - ../../base
+  - hpa.yaml
+  - pdb.yaml
+  - ingress.yaml
+  - backend-config.yaml
+
+patches:
+  - path: patches.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/instance: production
+
+replicas:
+  - name: brave-mcp
+    count: 3

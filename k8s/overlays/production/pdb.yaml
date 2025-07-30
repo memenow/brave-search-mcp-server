@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: brave-mcp-pdb
+  namespace: mcp
+  labels:
+    app.kubernetes.io/name: brave-mcp
+    app.kubernetes.io/component: availability
+    app.kubernetes.io/part-of: brave-search
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: brave-mcp
+      app.kubernetes.io/component: api
+  unhealthyPodEvictionPolicy: IfHealthyBudget
