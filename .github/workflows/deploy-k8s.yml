@@ -58,7 +58,7 @@ jobs:
 
     - name: Deploy to GKE
       run: |
-        cd k8s
+        cd k8s/overlays/production
         # Replace INGRESS_HOST placeholder with actual value
         if [ -f ingress.yaml ]; then
           sed -i "s/INGRESS_HOST/$INGRESS_HOST/g" ingress.yaml
@@ -67,9 +67,9 @@ jobs:
 
     - name: Verify deployment
       run: |
-        kubectl rollout status deployment/brave-search-mcp -n mcp --timeout=600s
+        kubectl rollout status deployment/brave-mcp -n mcp --timeout=600s
 
     - name: Get service status
       run: |
-        kubectl get services -n mcp -l app=brave-search-mcp
+        kubectl get services -n mcp -l app.kubernetes.io/part-of=brave-search
         kubectl get ingress -n mcp || echo "No ingress configured"
