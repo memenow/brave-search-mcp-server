@@ -4,3 +4,4 @@ metadata:
   name: mcp
   labels:
     name: mcp
+    app.kubernetes.io/managed-by: kustomize

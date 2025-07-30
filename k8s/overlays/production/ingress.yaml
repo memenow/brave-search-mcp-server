@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: brave-search-mcp-ingress
+  name: brave-mcp-ingress
   namespace: mcp
   annotations:
     kubernetes.io/ingress.class: "gce"
-    kubernetes.io/ingress.global-static-ip-name: "brave-search-ip"
-    networking.gke.io/managed-certificates: "brave-search-mcp-cert"
+    kubernetes.io/ingress.global-static-ip-name: "prod-autopilot-us-central-ip"
+    networking.gke.io/managed-certificates: "brave-mcp-cert"
     kubernetes.io/ingress.allow-http: "false"
 spec:
   rules:
@@ -17,14 +17,14 @@ spec:
         pathType: ImplementationSpecific
         backend:
           service:
-            name: brave-search-mcp
+            name: brave-mcp
             port:
-              number: 80
+              number: 8080
 ---
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
 metadata:
-  name: brave-search-mcp-cert
+  name: brave-mcp-cert
   namespace: mcp
 spec:
   domains:
