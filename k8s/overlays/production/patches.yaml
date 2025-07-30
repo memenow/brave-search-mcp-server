@@ -9,6 +9,10 @@ spec:
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         cloud.google.com/backend-config: '{"default": "brave-mcp-backend-config"}'
+    spec:
+      nodeSelector: null
+      tolerations: null
+      affinity: null
 ---
 apiVersion: v1
 kind: Service
