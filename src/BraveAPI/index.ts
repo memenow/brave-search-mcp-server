@@ -12,10 +12,12 @@ const typeToPathMap: Record<keyof Endpoints, string> = {
   summarizer: '/res/v1/summarizer/search',
 };
 
-const defaultRequestHeaders: Record<string, string> = {
-  Accept: 'application/json',
-  'Accept-Encoding': 'gzip',
-  'X-Subscription-Token': config.braveApiKey,
+const getDefaultRequestHeaders = (): Record<string, string> => {
+  return {
+    Accept: 'application/json',
+    'Accept-Encoding': 'gzip',
+    'X-Subscription-Token': config.braveApiKey,
+  };
 };
 
 const isValidGoggleURL = (url: string) => {
@@ -88,7 +90,7 @@ async function issueRequest<T extends keyof Endpoints>(
 
   // Issue Request
   const urlWithParams = url.toString() + '?' + queryParams.toString();
-  const headers = { ...defaultRequestHeaders, ...requestHeaders } as Headers;
+  const headers = { ...getDefaultRequestHeaders(), ...requestHeaders } as Headers;
   const response = await fetch(urlWithParams, { headers });
 
   // Handle Error
