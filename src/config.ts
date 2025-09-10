@@ -9,6 +9,14 @@ dotenv.config({ debug: false, quiet: true });
 // Config schema for Smithery.ai
 export const configSchema = z.object({
   braveApiKey: z.string().describe('Your API key'),
+  enabledTools: z
+    .array(z.string())
+    .describe('Enforces a tool whitelist (cannot be used with disabledTools)')
+    .optional(),
+  disabledTools: z
+    .array(z.string())
+    .describe('Enforces a tool blacklist (cannot be used with enabledTools)')
+    .optional(),
   loggingLevel: z
     .enum(LoggingLevelSchema.options)
     .default('info')
@@ -38,8 +46,6 @@ const state: Configuration & { ready: boolean } = {
   enabledTools: [],
   disabledTools: [],
 };
-
-const toolNames = Object.values(tools).map((tool) => tool.name);
 
 export function isToolPermittedByUser(toolName: string): boolean {
   return state.enabledTools.length > 0
@@ -80,6 +86,7 @@ export function getOptions(): Configuration | false {
     .parse(process.argv);
 
   const options = program.opts();
+  const toolNames = Object.values(tools).map((tool) => tool.name);
 
   // Validate tool inclusion configuration
   const { enabledTools, disabledTools } = options;
