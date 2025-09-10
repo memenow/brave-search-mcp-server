@@ -1,6 +1,5 @@
 import tools from './tools/index.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import pkg from '../package.json' with { type: 'json' };
 import { isToolPermittedByUser } from './config.js';
 import { type SmitheryConfig, setOptions } from './config.js';
@@ -27,16 +26,6 @@ export default function createMcpServer(options?: CreateMcpServerOptions): McpSe
       instructions: `Use this server to search the Web for various types of data via the Brave Search API.`,
     }
   );
-
-  try {
-    mcpServer.server.assertCanSetRequestHandler(SetLevelRequestSchema.shape.method.value);
-    mcpServer.server.setRequestHandler(SetLevelRequestSchema, () => ({}));
-  } catch (error) {
-    /**
-     * An error here signifies native-handling of the SetLevel request.
-     * See https://github.com/modelcontextprotocol/typescript-sdk/issues/871.
-     */
-  }
 
   for (const tool of Object.values(tools)) {
     // The user may have enabled/disabled this tool at runtime
