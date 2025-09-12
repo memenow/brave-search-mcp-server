@@ -2,6 +2,18 @@
 
 An MCP server implementation that integrates the Brave Search API, providing comprehensive search capabilities including web search, local business search, image search, video search, news search, and AI-powered summarization. This project supports both STDIO and HTTP transports, with STDIO as the default mode.
 
+## Migration
+
+### 1.x to 2.x
+
+#### Default transport now STDIO
+
+To follow established MCP conventions, the server now defaults to STDIO. If you would like to continue using HTTP, you will need to set the `BRAVE_MCP_TRANSPORT` environment variable to `http`, or provide the runtime argument `--transport http` when launching the server.
+
+#### Response structure of `brave_image_search`
+
+Version 1.x of the MCP server would return base64-encoded image data along with image URLs. This dramatically slowed down the response, as well as consumed unnecessarily context in the session. Version 2.x removes the base64-encoded data, and returns a response object that more closely reflects the original Brave Search API response. The updated output schema is defined in [`src/tools/images/schemas/output.ts`](https://github.com/brave/brave-search-mcp-server/blob/main/src/tools/images/schemas/output.ts).
+
 ## Tools
 
 ### Web Search (`brave_web_search`)
