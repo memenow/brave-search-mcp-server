@@ -1,6 +1,6 @@
 {
   "name": "@brave/brave-search-mcp-server",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "MCP server for Brave Search. Uses the Brave Search API to return results from the web, including ranked links, images, and videos, as well as AI summaries of pages, rich results, and more.",
   "keywords": [
     "api",
