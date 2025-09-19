@@ -39,6 +39,24 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      - name: Commit build assets
+        run: |
+          git add package.json package-lock.json
+          git commit -m "ci: update build assets (${{ steps.bump-version.outputs.version }})"
+          git push
+
+      - name: Create release
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
+        with:
+          tag_name: ${{ steps.bump-version.outputs.version }}
+          generate_release_notes: true
+          make_latest: true
+
+      - name: Publish NPM package
+        run: npm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Login to Docker Hub
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
@@ -57,20 +75,12 @@ jobs:
       - name: Push to Docker Hub
         run: docker push ${GITHUB_REPOSITORY} --all-tags
 
-      - name: Bump version and commit build assets
+      - name: Install MCP Publisher
         run: |
-          git add package.json package-lock.json
-          git commit -m "ci: update build assets (${{ steps.bump-version.outputs.version }})"
-          git push
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
-      - name: Publish NPM package
-        run: npm publish --no-git-checks --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Login to MCP Registry
+        run: ./mcp-publisher login github-oidc
 
-      - name: Create release
-        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
-        with:
-          tag_name: ${{ steps.bump-version.outputs.version }}
-          generate_release_notes: true
-          make_latest: true
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
