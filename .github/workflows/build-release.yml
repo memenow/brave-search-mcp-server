@@ -32,11 +32,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Bump patch version
+      - name: Bump version
         id: bump-version
         run: |
-          VERSION=$(npm version patch --no-git-tag-version)
+          TAG=$(npm version patch --no-git-tag-version)
+          VERSION=${TAG#v}
           jq --arg v "$VERSION" '(.version,.packages[].version) = $v' server.json > tmp && mv tmp server.json
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build assets
@@ -45,13 +47,13 @@ jobs:
       - name: Commit build assets
         run: |
           git add package.json package-lock.json
-          git commit -m "ci: update build assets (${{ steps.bump-version.outputs.version }})"
+          git commit -m "ci: update build assets (${{ steps.bump-version.outputs.tag }})"
           git push
 
       - name: Create release
         uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
         with:
-          tag_name: ${{ steps.bump-version.outputs.version }}
+          tag_name: ${{ steps.bump-version.outputs.tag }}
           generate_release_notes: true
           make_latest: true
 
@@ -69,7 +71,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            -t ${GITHUB_REPOSITORY}:${{ steps.bump-version.outputs.version }} \
+            -t ${GITHUB_REPOSITORY}:${{ steps.bump-version.outputs.tag }} \
             -t ${GITHUB_REPOSITORY}:${GITHUB_SHA} \
             -t ${GITHUB_REPOSITORY}:${GITHUB_SHA::7} \
             -t ${GITHUB_REPOSITORY}:latest \
@@ -84,13 +86,14 @@ jobs:
 
       - name: Wait for NPM package propagation
         run: |
-          echo "Waiting for NPM package version ${{ steps.bump-version.outputs.version }} to be available..."
+          VERSION="${{ steps.bump-version.outputs.version }}"
+          echo "Waiting for NPM package version $VERSION to be available..."
           for i in {1..30}; do
-            if curl -s "https://registry.npmjs.org/@brave/brave-search-mcp-server" | jq -e '.versions["${{ steps.bump-version.outputs.version }}"]' > /dev/null; then
-              echo "Package version ${{ steps.bump-version.outputs.version }} is available on NPM registry"
+            if curl -s "https://registry.npmjs.org/@brave/brave-search-mcp-server" | jq -e ".versions[\"$VERSION\"]" > /dev/null; then
+              echo "Package version $VERSION is available on NPM registry"
               break
             fi
-            echo "Attempt $i/30: Package version ${{ steps.bump-version.outputs.version }} not yet available, waiting 10 seconds..."
+            echo "Attempt $i/30: Package version $VERSION not yet available, waiting 10 seconds..."
             sleep 10
           done
 
