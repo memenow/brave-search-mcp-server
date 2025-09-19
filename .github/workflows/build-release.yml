@@ -36,6 +36,7 @@ jobs:
         id: bump-version
         run: |
           VERSION=$(npm version patch --no-git-tag-version)
+          jq --arg v "$VERSION" '(.version,.packages[].version) = $v' server.json > tmp && mv tmp server.json
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build assets
