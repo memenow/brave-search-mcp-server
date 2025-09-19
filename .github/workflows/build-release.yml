@@ -46,7 +46,7 @@ jobs:
 
       - name: Commit build assets
         run: |
-          git add package.json package-lock.json
+          git add package.json package-lock.json server.json
           git commit -m "ci: update build assets (${{ steps.bump-version.outputs.tag }})"
           git push
 
