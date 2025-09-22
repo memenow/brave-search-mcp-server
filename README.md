@@ -146,7 +146,7 @@ Add this to your `claude_desktop_config.json`:
   "mcpServers": {
     "brave-search": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "BRAVE_API_KEY", "mcp/brave-search"],
+      "args": ["run", "-i", "--rm", "-e", "BRAVE_API_KEY", "docker.io/mcp/brave-search"],
       "env": {
         "BRAVE_API_KEY": "YOUR_API_KEY_HERE"
       }
