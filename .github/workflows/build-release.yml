@@ -80,6 +80,34 @@ jobs:
       - name: Push to Docker Hub
         run: docker push ${GITHUB_REPOSITORY} --all-tags
 
+      # AWS Marketplace ECR deployment steps
+      - name: Configure AWS Credentials to deploy to AWS Marketplace ECR
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        with:
+          role-to-assume: ${{ secrets.MARKETPL_AWS_IAM_ROLE_ARN }}
+          region: us-east-1
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+        with:
+          registries: ${{ secrets.MARKETPL_ECR_AWS_ACCOUNT_ID }}
+
+      # Push to AWS Marketplace-owned ECR Repository (https://docs.aws.amazon.com/marketplace/latest/userguide/container-product-policies.html)
+      # Build docker image to support multi-architecture (https://aws.amazon.com/blogs/containers/introducing-multi-architecture-container-images-for-amazon-ecr/)
+      - name: Build, tag and push to AWS Marketplace ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: brave/brave-search-mcp
+          IMAGE_RELEASE_TAG: ${{ steps.bump-version.outputs.tag }}
+        run: |
+          docker buildx \
+            --sbom=false --provenance=false --platform linux/amd64 --platform linux/aarch64 \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_RELEASE_TAG \
+            -t $REGISTRY/$REPOSITORY:${GITHUB_SHA} \
+            -t $REGISTRY/$REPOSITORY:${GITHUB_SHA::7} .
+          docker push $REGISTRY/$REPOSITORY --all-tags
+
       - name: Install MCP Publisher
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.1.0/mcp-publisher_1.1.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
