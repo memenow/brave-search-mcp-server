@@ -109,7 +109,7 @@ jobs:
           IMAGE_RELEASE_TAG: ${{ steps.bump-version.outputs.tag }}
         run: |
           docker buildx \
-            --sbom=false --provenance=false --platform linux/amd64 --platform linux/aarch64 \
+            --platform linux/amd64 --platform linux/aarch64 \
             -t $REGISTRY/$REPOSITORY:$IMAGE_RELEASE_TAG \
             -t $REGISTRY/$REPOSITORY:${GITHUB_SHA} \
             -t $REGISTRY/$REPOSITORY:${GITHUB_SHA::7} .
