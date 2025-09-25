@@ -1,6 +1,6 @@
 FROM node:alpine@sha256:3e843c608bb5232f39ecb2b25e41214b958b0795914707374c8acc28487dea17 AS builder
 
-RUN apk add --no-cache openssl=3.5.2-r0
+RUN apk add --no-cache openssl=3.5.3-r1
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN npm run build
 
 FROM node:alpine@sha256:3e843c608bb5232f39ecb2b25e41214b958b0795914707374c8acc28487dea17 AS release
 
-RUN apk add --no-cache openssl=3.5.2-r0
+RUN apk add --no-cache openssl=3.5.3-r1
 
 WORKDIR /app
 
