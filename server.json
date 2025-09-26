@@ -4,7 +4,6 @@
   "description": "Brave Search MCP Server: web results, images, videos, rich results, AI summaries, and more.",
   "version": "2.0.23",
   "status": "active",
-  "websiteUrl": "https://brave.com",
   "repository": {
     "url": "https://github.com/brave/brave-search-mcp-server",
     "source": "github"
