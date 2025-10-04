@@ -135,6 +135,14 @@ Options:
 
 ## Installation
 
+### Installing via Smithery
+
+To install Brave Search automatically via [Smithery](https://smithery.ai/server/brave):
+
+```bash
+npx -y @smithery/cli install brave
+```
+
 ### Usage with Claude Desktop
 
 Add this to your `claude_desktop_config.json`:
