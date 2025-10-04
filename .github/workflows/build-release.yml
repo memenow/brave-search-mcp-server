@@ -30,7 +30,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Bump version
         id: bump-version
