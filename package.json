@@ -27,8 +27,8 @@
   ],
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
-    "smithery:build": "npx @smithery/cli build",
-    "smithery:dev": "npx @smithery/cli dev",
+    "smithery:build": "smithery build",
+    "smithery:dev": "smithery dev",
     "prepare": "npm run format && npm run build",
     "watch": "tsc --watch",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@types/express": "5.0.3",
+    "@smithery/cli": "1.4.6",
     "@types/node": "24.3.1",
     "prettier": "3.6.2",
     "shx": "0.4.0",
