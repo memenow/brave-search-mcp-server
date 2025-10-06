@@ -174,53 +174,52 @@ jobs:
         run: |
           echo 'DELIVERY_OPTIONS<<EOF' >> $GITHUB_ENV
           cat >> $GITHUB_ENV <<EOF
-[
-  {
-      "DeliveryOptionTitle": "Brave Search MCP Server",
-      "Details": {
-          "EcrDeliveryOptionDetails": {
-              "UsageInstructions": "Navigate to https://brave.com/search/api/ and create an account.  Once an account is created, select a plan, and generate an API key.  \n\nPlease refer to Brave Search MCP Server usage documentation (https://brave-marketplace-artifacts-prod.s3.us-west-2.amazonaws.com/brave-search-mcp-server/MCP_Server_Usage_Instructions_md.md) for more details about configuration and usage of Brave Search MCP Server",
-              "AgenticType": [
-                  "MCP_SERVER"
-              ],
-              "CompatibleServices": [
-                  "Bedrock-AgentCore"
-              ],
-              "Description": "docker pull $MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG",
-              "DeploymentResources": [
-                  {
-                      "Url": "https://brave-marketplace-artifacts-prod.s3.us-west-2.amazonaws.com/brave-search-mcp-server/MCP_Server_Usage_Instructions_md.md",
-                      "Name": "Brave Search MCP Usage Instructions"
-                  }
-              ],
-              "ContainerImages": [
-                  "$MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG"
-              ]
-          }
-      }
-  },
-  {
-      "DeliveryOptionTitle": "Docker Image",
-      "Details": {
-          "EcrDeliveryOptionDetails": {
-              "UsageInstructions": "docker run --rm -ti -p 8080:8080 --cap-drop all --read-only -e BRAVE_API_KEY=\"XXXX\" -e BRAVE_MCP_TRANSPORT=http -e BRAVE_MCP_PORT=8080 -e BRAVE_MCP_HOST=0.0.0.0 $MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG",
-              "CompatibleServices": [
-                  "ECS",
-                  "ECS-Anywhere",
-                  "EKS",
-                  "EKS-Anywhere"
-                ],
-              "Description": "Image can be accessed via AWS Marketplace ECR Repository: $MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG",
-                "DeploymentResources": [],
-                "ContainerImages": [
-                    "$MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG"
-                ]
+          [
+            {
+                "DeliveryOptionTitle": "Brave Search MCP Server",
+                "Details": {
+                    "EcrDeliveryOptionDetails": {
+                        "UsageInstructions": "Navigate to https://brave.com/search/api/ and create an account.  Once an account is created, select a plan, and generate an API key.  \n\nPlease refer to Brave Search MCP Server usage documentation (https://brave-marketplace-artifacts-prod.s3.us-west-2.amazonaws.com/brave-search-mcp-server/MCP_Server_Usage_Instructions_md.md) for more details about configuration and usage of Brave Search MCP Server",
+                        "AgenticType": [
+                            "MCP_SERVER"
+                        ],
+                        "CompatibleServices": [
+                            "Bedrock-AgentCore"
+                        ],
+                        "Description": "docker pull $MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG",
+                        "DeploymentResources": [
+                            {
+                                "Url": "https://brave-marketplace-artifacts-prod.s3.us-west-2.amazonaws.com/brave-search-mcp-server/MCP_Server_Usage_Instructions_md.md",
+                                "Name": "Brave Search MCP Usage Instructions"
+                            }
+                        ],
+                        "ContainerImages": [
+                            "$MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG"
+                        ]
+                    }
+                }
+            },
+            {
+                "DeliveryOptionTitle": "Docker Image",
+                "Details": {
+                    "EcrDeliveryOptionDetails": {
+                        "UsageInstructions": "docker run --rm -ti -p 8080:8080 --cap-drop all --read-only -e BRAVE_API_KEY=\"XXXX\" -e BRAVE_MCP_TRANSPORT=http -e BRAVE_MCP_PORT=8080 -e BRAVE_MCP_HOST=0.0.0.0 $MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG",
+                        "CompatibleServices": [
+                            "ECS",
+                            "ECS-Anywhere",
+                            "EKS",
+                            "EKS-Anywhere"
+                        ],
+                        "Description": "Image can be accessed via AWS Marketplace ECR Repository: $MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG",
+                        "DeploymentResources": [],
+                        "ContainerImages": [
+                            "$MARKETPL_REGISTRY/$MARKETPL_REPOSITORY:$IMAGE_RELEASE_TAG"
+                        ]
+                    }
+                }
             }
-        }
-    }
-]
-EOF
-
+          ]
+          EOF
       - name: Update DeliveryOptions in marketplace-revision-release.yaml
         run: yq -i '.ChangeSet[].DetailsDocument.DeliveryOptions = fromjson(env(DELIVERY_OPTIONS))' marketplace-revision-release.yaml
 
