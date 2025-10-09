@@ -1,4 +1,4 @@
-FROM node:alpine@sha256:f8baf2c963e3bff767993135ae3447bb433e8d64a5e4bb65780cd29ef3a525c2 AS builder
+FROM node:alpine@sha256:b0d33ed19a912e1a18ceb83e139815233cd49c123fe025e67a7c506c93e3f728 AS builder
 
 RUN apk add --no-cache openssl=3.5.4-r0
 
@@ -14,7 +14,7 @@ COPY ./tsconfig.json ./tsconfig.json
 
 RUN npm run build
 
-FROM node:alpine@sha256:f8baf2c963e3bff767993135ae3447bb433e8d64a5e4bb65780cd29ef3a525c2 AS release
+FROM node:alpine@sha256:b0d33ed19a912e1a18ceb83e139815233cd49c123fe025e67a7c506c93e3f728 AS release
 
 RUN apk add --no-cache openssl=3.5.4-r0
 
