@@ -37,7 +37,7 @@
     "inspector:http": "npx @modelcontextprotocol/inspector --transport http"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.18.2",
+    "@modelcontextprotocol/sdk": "1.20.0",
     "commander": "14.0.1",
     "dotenv": "17.2.3",
     "express": "5.1.0",
