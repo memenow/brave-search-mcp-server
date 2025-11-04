@@ -44,7 +44,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@types/express": "5.0.3",
+    "@types/express": "5.0.5",
     "@smithery/cli": "1.6.3",
     "@types/node": "24.9.1",
     "prettier": "3.6.2",
