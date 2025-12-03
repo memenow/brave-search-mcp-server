@@ -18,7 +18,16 @@ export const configSchema = z.object({
     .describe('Enforces a tool blacklist (cannot be used with enabledTools)')
     .optional(),
   loggingLevel: z
-    .enum(LoggingLevelSchema.options)
+    .enum([
+      'debug',
+      'error',
+      'info',
+      'notice',
+      'warning',
+      'critical',
+      'alert',
+      'emergency',
+    ] as const)
     .default('info')
     .describe('Desired logging level')
     .optional(),
