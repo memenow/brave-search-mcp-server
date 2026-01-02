@@ -41,11 +41,11 @@
     "commander": "14.0.2",
     "dotenv": "17.2.3",
     "express": "5.2.1",
-    "zod": "3.25.76"
+    "zod": "4.3.4"
   },
   "devDependencies": {
     "@types/express": "5.0.5",
-    "@smithery/cli": "1.6.4",
+    "@smithery/cli": "2.0.0",
     "@types/node": "24.10.1",
     "prettier": "3.7.1",
     "shx": "0.4.0",
