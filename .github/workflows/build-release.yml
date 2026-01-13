@@ -34,7 +34,7 @@ jobs:
 
       # Install latest version of jq
       - name: Install latest version of jq to populate Marketplace Catalog StartChangeSet to publish new revision
-        uses: vegardit/gha-setup-jq@491c577e0d5e6512cf02b06cf439b1fc4165aad1 # v1.0.0
+        uses: vegardit/gha-setup-jq@fae9c6aa0b21dbe5bd3b77d280cf142e0a0a65b4 # 1.1.0
         with:
           version: "latest"
 
