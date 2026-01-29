@@ -113,9 +113,10 @@ export function getOptions(): Configuration | false {
   const toolNames = Object.values(tools).map((tool) => tool.name);
 
   // Validate tool inclusion configuration
-  const { enabledTools, disabledTools } = options;
+  const enabledTools = options.enabledTools.filter((t: string) => t.trim().length > 0);
+  const disabledTools = options.disabledTools.filter((t: string) => t.trim().length > 0);
 
-  if (enabledTools.trim().length > 0 && disabledTools.trim().length > 0) {
+  if (enabledTools.length > 0 && disabledTools.length > 0) {
     console.error('Error: --enabled-tools and --disabled-tools cannot be used together');
     return false;
   }
