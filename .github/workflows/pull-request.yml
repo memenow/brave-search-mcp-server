@@ -63,7 +63,8 @@ jobs:
   auto-label:
     name: Auto Label PR
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # Skip for fork PRs (GITHUB_TOKEN lacks write permission to upstream labels)
+    if: github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Label PR based on files
