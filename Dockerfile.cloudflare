@@ -1,0 +1,36 @@
+# Build stage
+FROM --platform=linux/amd64 node:22-alpine AS builder
+
+WORKDIR /app
+
+COPY ./package.json ./package.json
+COPY ./package-lock.json ./package-lock.json
+
+RUN npm ci --ignore-scripts
+
+COPY ./src ./src
+COPY ./tsconfig.json ./tsconfig.json
+
+RUN npm run build
+
+# Release stage
+FROM --platform=linux/amd64 node:22-alpine AS release
+
+WORKDIR /app
+
+COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/package-lock.json /app/package-lock.json
+
+ENV NODE_ENV=production
+ENV BRAVE_MCP_TRANSPORT=http
+ENV BRAVE_MCP_PORT=8080
+ENV BRAVE_MCP_HOST=0.0.0.0
+
+RUN npm ci --omit=dev --ignore-scripts
+
+USER node
+
+EXPOSE 8080
+
+CMD ["node", "dist/index.js", "--transport", "http"]

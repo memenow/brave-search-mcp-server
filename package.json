@@ -34,7 +34,10 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "inspector": "npx @modelcontextprotocol/inspector",
-    "inspector:http": "npx @modelcontextprotocol/inspector --transport http"
+    "inspector:http": "npx @modelcontextprotocol/inspector --transport http",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy",
+    "cf:tail": "wrangler tail"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",
@@ -44,13 +47,16 @@
     "zod": "4.3.5"
   },
   "devDependencies": {
-    "@types/express": "5.0.6",
+    "@cloudflare/containers": "^0.1.0",
+    "@cloudflare/workers-types": "^4.20260226.1",
     "@smithery/cli": "2.2.1",
+    "@types/express": "5.0.6",
     "@types/node": "24.10.4",
     "prettier": "3.7.4",
     "shx": "0.4.0",
     "tsx": "4.21.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "^4.69.0"
   },
   "overrides": {
     "formdata-node": "6.0.3",
