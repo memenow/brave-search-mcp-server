@@ -1,0 +1,69 @@
+# Configuration for auto-labeling pull requests
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - package.json
+      - package-lock.json
+      - .npmrc
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - docs/**
+
+typescript:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.ts'
+      - tsconfig.json
+      - tsconfig.worker.json
+
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - Dockerfile
+      - Dockerfile.cloudflare
+      - docker-compose.yml
+      - .dockerignore
+
+ci/cd:
+  - changed-files:
+    - any-glob-to-any-file:
+      - .github/**
+
+cloudflare:
+  - changed-files:
+    - any-glob-to-any-file:
+      - wrangler.jsonc
+      - src/worker.ts
+
+api:
+  - changed-files:
+    - any-glob-to-any-file:
+      - src/BraveAPI/**
+
+tools:
+  - changed-files:
+    - any-glob-to-any-file:
+      - src/tools/**
+
+protocols:
+  - changed-files:
+    - any-glob-to-any-file:
+      - src/protocols/**
+
+config:
+  - changed-files:
+    - any-glob-to-any-file:
+      - src/config.ts
+      - src/constants.ts
+      - wrangler.jsonc
+      - tsconfig.json
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.test.ts'
+      - '**/*.spec.ts'

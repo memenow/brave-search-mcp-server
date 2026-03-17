@@ -1,0 +1,147 @@
+# Pull Request Validation Workflow
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
+
+jobs:
+  # Validate PR Title (Conventional Commits format)
+  pr-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR title format
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            doesn't start with an uppercase character.
+
+  # Check PR Size
+  pr-size:
+    name: PR Size Labeler
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: PR Size Labeler
+        uses: CodelyTV/pr-size-labeler@4ec67706cd878fbc1c8db0a5dcd28b6bb412e85a # v1.10.3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          xs_max_size: '10'
+          s_max_size: '100'
+          m_max_size: '500'
+          l_max_size: '1000'
+          xl_max_size: '2000'
+
+  # Auto-label PR based on changed files
+  auto-label:
+    name: Auto Label PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Label PR based on files
+        uses: actions/labeler@634933edcd8ababfe52f92936142cc22ac488b1b # v6.0.1
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          sync-labels: true
+
+  # Check for merge conflicts
+  conflict-check:
+    name: Check Merge Conflicts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check for conflicts
+        run: |
+          git fetch origin main
+          if ! git merge-tree $(git merge-base HEAD origin/main) HEAD origin/main | grep -q "<<<<<<< "; then
+            echo "No merge conflicts detected"
+          else
+            echo "Merge conflicts detected"
+            exit 1
+          fi
+
+  # Documentation check
+  docs-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check if docs needed
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            const hasCodeChanges = files.data.some(file =>
+              file.filename.endsWith('.ts') ||
+              file.filename.endsWith('.js')
+            );
+
+            const hasDocsChanges = files.data.some(file =>
+              file.filename.endsWith('.md') ||
+              file.filename.includes('docs/')
+            );
+
+            if (hasCodeChanges && !hasDocsChanges) {
+              core.warning('Code changes detected without documentation updates. Please ensure documentation is up to date.');
+            }
+
+  # PR Summary
+  pr-summary:
+    name: PR Summary
+    needs: [pr-title, conflict-check]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Create PR summary
+        env:
+          PR_TITLE_RESULT: ${{ needs.pr-title.result }}
+          CONFLICT_RESULT: ${{ needs.conflict-check.result }}
+        run: |
+          echo "## PR Validation Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PR Title | ${PR_TITLE_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Merge Conflicts | ${CONFLICT_RESULT} |" >> "$GITHUB_STEP_SUMMARY"

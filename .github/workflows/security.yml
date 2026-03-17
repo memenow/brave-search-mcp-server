@@ -1,0 +1,156 @@
+# Security Scanning Workflow
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run security scan every Monday at 3:00 AM UTC
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  # Semgrep Static Analysis
+  semgrep:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+        with:
+          config: >-
+            p/security-audit
+            p/typescript
+            p/javascript
+            p/nodejs
+            p/owasp-top-ten
+        continue-on-error: true
+
+      - name: Semgrep summary
+        run: echo "Semgrep completed. Results are available in workflow logs."
+        if: always()
+
+  # Dependency Vulnerability Scan (npm audit + Trivy filesystem)
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+  # Secret Scanning
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS (push/pull_request)
+        if: github.event_name != 'schedule'
+        uses: trufflesecurity/trufflehog@6961f2bace57ab32b23b3ba40f8f420f6bc7e004 # v3.93.3
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha || github.event.before || github.event.repository.default_branch }}
+          head: ${{ github.event.pull_request.head.sha || github.sha || 'HEAD' }}
+          extra_args: --debug --only-verified
+        continue-on-error: true
+
+      - name: TruffleHog OSS (schedule)
+        if: github.event_name == 'schedule'
+        uses: trufflesecurity/trufflehog@6961f2bace57ab32b23b3ba40f8f420f6bc7e004 # v3.93.3
+        with:
+          path: ./
+          extra_args: --debug --only-verified
+        continue-on-error: true
+
+  # Container Security Scanning (only on push to main and scheduled runs)
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          push: false
+          load: true
+          tags: brave-search-mcp-server:scan
+
+      - name: Run Trivy container scanner
+        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
+        with:
+          image-ref: 'brave-search-mcp-server:scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+  # Security Summary
+  security-summary:
+    name: Security Summary
+    needs: [semgrep, dependency-scan, secret-scan]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Create security summary
+        env:
+          SEMGREP_RESULT: ${{ needs.semgrep.result }}
+          DEPENDENCY_RESULT: ${{ needs.dependency-scan.result }}
+          SECRET_RESULT: ${{ needs.secret-scan.result }}
+        run: |
+          echo "## Security Scan Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Semgrep Analysis | ${SEMGREP_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency Scan | ${DEPENDENCY_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Secret Scan | ${SECRET_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
