@@ -40,19 +40,19 @@
     "cf:tail": "wrangler tail"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.26.0",
-    "commander": "14.0.2",
-    "dotenv": "17.2.3",
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "commander": "14.0.3",
+    "dotenv": "17.3.1",
     "express": "5.2.1",
-    "zod": "4.3.5"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@cloudflare/containers": "^0.1.0",
     "@cloudflare/workers-types": "^4.20260226.1",
     "@smithery/cli": "2.2.1",
     "@types/express": "5.0.6",
-    "@types/node": "24.10.4",
-    "prettier": "3.7.4",
+    "@types/node": "24.10.13",
+    "prettier": "3.8.1",
     "shx": "0.4.0",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
