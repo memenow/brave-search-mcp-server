@@ -1,0 +1,38 @@
+{
+  // Cloudflare Worker and Container Configuration
+  // Documentation: https://developers.cloudflare.com/containers/
+
+  "name": "brave-search-mcp-server",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-02-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "tsconfig": "tsconfig.worker.json",
+
+  // Container configuration (array format for wrangler 4.x)
+  "containers": [
+    {
+      "class_name": "BraveSearchContainer",
+      "image": "./Dockerfile.cloudflare",
+      "max_instances": 2,
+      "instance_type": "basic"
+    }
+  ],
+
+  // Durable Objects bindings for Container
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BRAVE_SEARCH_CONTAINER",
+        "class_name": "BraveSearchContainer"
+      }
+    ]
+  },
+
+  // Migration for Durable Objects
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["BraveSearchContainer"]
+    }
+  ]
+}
