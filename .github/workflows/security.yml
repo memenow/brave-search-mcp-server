@@ -34,7 +34,6 @@ jobs:
             p/javascript
             p/nodejs
             p/owasp-top-ten
-        continue-on-error: true
 
       - name: Semgrep summary
         run: echo "Semgrep completed. Results are available in workflow logs."
@@ -136,7 +135,7 @@ jobs:
   # Security Summary
   security-summary:
     name: Security Summary
-    needs: [semgrep, dependency-scan, secret-scan]
+    needs: [semgrep, dependency-scan, secret-scan, container-scan]
     runs-on: ubuntu-latest
     if: always()
 
@@ -146,6 +145,7 @@ jobs:
           SEMGREP_RESULT: ${{ needs.semgrep.result }}
           DEPENDENCY_RESULT: ${{ needs.dependency-scan.result }}
           SECRET_RESULT: ${{ needs.secret-scan.result }}
+          CONTAINER_RESULT: ${{ needs.container-scan.result }}
         run: |
           echo "## Security Scan Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -154,3 +154,4 @@ jobs:
           echo "| Semgrep Analysis | ${SEMGREP_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Dependency Scan | ${DEPENDENCY_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Secret Scan | ${SECRET_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Container Scan | ${CONTAINER_RESULT} |" >> "$GITHUB_STEP_SUMMARY"
