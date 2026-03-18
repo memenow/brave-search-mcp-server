@@ -1,0 +1,82 @@
+# Continuous Deployment Workflow
+name: Deploy to Cloudflare
+
+on:
+  workflow_run:
+    workflows:
+      - "Build and Test"
+    types:
+      - completed
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Deploy on successful Build and Test (main branch) or on release
+    if: >-
+      (github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.head_branch == 'main')
+      || github.event_name == 'release'
+
+    steps:
+      - name: Determine version and environment
+        id: vars
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ "${EVENT_NAME}" == "release" ]]; then
+            echo "ENVIRONMENT=production" >> "$GITHUB_ENV"
+            echo "PACKAGE_VERSION=${RELEASE_TAG#v}" >> "$GITHUB_ENV"
+          else
+            echo "ENVIRONMENT=development" >> "$GITHUB_ENV"
+            SHORT_SHA=${HEAD_SHA::8}
+            ATTEMPT=${RUN_ATTEMPT:-1}
+            echo "PACKAGE_VERSION=0.0.0-main.${SHORT_SHA}.${ATTEMPT}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          echo "Build output:"
+          ls -l dist/
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65 # v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Environment:** ${ENVIRONMENT}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Version:** ${PACKAGE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
