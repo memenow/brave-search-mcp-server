@@ -42,6 +42,7 @@ Package manager: **npm** (only `package-lock.json` is committed).
 - `BRAVE_MCP_PORT` (default `8000`), `BRAVE_MCP_HOST` (default `0.0.0.0`), `BRAVE_MCP_LOG_LEVEL` (default `info`).
 - `BRAVE_MCP_ENABLED_TOOLS` / `BRAVE_MCP_DISABLED_TOOLS` — comma-separated tool allow/deny list.
 - `BRAVE_MCP_STATELESS` — HTTP stateless mode; default `true` (required for AWS Bedrock AgentCore).
+- `MCP_AUTH_TOKEN` — **Workers deployment only**; Bearer token required on the public `/brave/mcp` route. Set via `wrangler secret put MCP_AUTH_TOKEN`. Not consumed by the Node-side server.
 
 No `.env.example` exists; see `README.md` for the canonical list.
 
@@ -68,6 +69,7 @@ TypeScript: `strict: true`, `ES2022`, `NodeNext` module + resolution. Project is
 - Cloudflare Containers are wired as **Durable Objects with SQLite** (`migrations[].tag: "v1"`, `new_sqlite_classes: ["BraveSearchContainer"]`). Renaming or removing the class requires a new migration tag — never edit the existing one.
 - `Dockerfile` (generic) and `Dockerfile.cloudflare` (Workers Container image) are distinct; the Cloudflare deploy uses the latter via `wrangler.jsonc`.
 - `BRAVE_API_KEY` must be set on the Cloudflare side (`wrangler secret put BRAVE_API_KEY`) before `cf:deploy`; it is not bundled.
+- `src/worker.ts` exposes two distinct path namespaces: `/brave/*` (public, served by the `routes` entry in `wrangler.jsonc`, Bearer-auth on `/brave/mcp`) and `/internal/mcp` (service-binding-only, no auth, no public route). The `/internal/*` path is **load-bearing** for other Workers in the account that bind this service — do not rename or move it without updating consumer Workers.
 - Smithery has its own build pipeline (`smithery:build`) and reads `smithery.yaml` + `server.json` — keep those in sync with `package.json` `version` on releases.
 - Response schema for `brave_image_search` changed in v2 (no base64 payload); see `README.md` migration notes when touching image-tool callers.
 

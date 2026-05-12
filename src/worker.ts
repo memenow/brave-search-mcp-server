@@ -1,8 +1,13 @@
 /**
  * Cloudflare Worker entry point for Brave Search MCP Server.
- * This worker routes requests to the containerized MCP HTTP server.
+ *
+ * Public surface is served under the configured Workers route (e.g. `mcp.memenow.xyz/brave/*`)
+ * and requires `Authorization: Bearer ${MCP_AUTH_TOKEN}` on `/brave/mcp`. The `/internal/mcp`
+ * path has no public route mapped to it and is reachable only via service bindings from other
+ * Workers in the same account — those callers do not carry a credential.
  */
 import { Container, getContainer } from '@cloudflare/containers';
+import { verifyBearer } from './worker-auth.js';
 
 /**
  * Brave Search MCP Container configuration.
@@ -28,45 +33,74 @@ export class BraveSearchContainer extends Container {
 
 /**
  * Environment interface for the Worker.
- * BRAVE_API_KEY is set via Wrangler Secrets (not in vars).
+ * Secrets are set via `wrangler secret put …` and never bundled.
  */
 interface Env {
   BRAVE_SEARCH_CONTAINER: DurableObjectNamespace<BraveSearchContainer>;
   BRAVE_API_KEY: string;
+  MCP_AUTH_TOKEN: string;
 }
 
-/**
- * Worker fetch handler.
- * Routes MCP and health-check requests to the Brave Search MCP Container.
- */
+type Route = { rewriteTo: string; requireAuth: boolean };
+
+const ROUTES: Record<string, Route> = {
+  '/brave/mcp': { rewriteTo: '/mcp', requireAuth: true },
+  '/brave/ping': { rewriteTo: '/ping', requireAuth: false },
+  // Service-binding-only: not exposed via any public Workers route.
+  '/internal/mcp': { rewriteTo: '/mcp', requireAuth: false },
+};
+
+const jsonResponse = (
+  status: number,
+  body: Record<string, unknown>,
+  extraHeaders?: HeadersInit
+): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...(extraHeaders ?? {}) },
+  });
+
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const route = ROUTES[url.pathname];
 
-    // Only allow known MCP paths
-    if (url.pathname !== '/mcp' && url.pathname !== '/ping') {
-      return new Response(JSON.stringify({ error: 'Not Found', message: 'Use /mcp or /ping' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
+    if (!route) {
+      return jsonResponse(404, {
+        error: 'Not Found',
+        message: 'Use /brave/mcp or /brave/ping',
       });
     }
 
-    // Validate that BRAVE_API_KEY is configured
     if (!env.BRAVE_API_KEY) {
-      return new Response(
-        JSON.stringify({
-          error: 'Configuration Error',
-          message:
-            'BRAVE_API_KEY is not configured. Set it using: wrangler secret put BRAVE_API_KEY',
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return jsonResponse(500, {
+        error: 'Configuration Error',
+        message: 'BRAVE_API_KEY is not configured. Set it using: wrangler secret put BRAVE_API_KEY',
+      });
     }
 
-    // Get the container instance and forward the request
+    if (route.requireAuth) {
+      if (!env.MCP_AUTH_TOKEN) {
+        return jsonResponse(500, {
+          error: 'Configuration Error',
+          message:
+            'MCP_AUTH_TOKEN is not configured. Set it using: wrangler secret put MCP_AUTH_TOKEN',
+        });
+      }
+      if (!verifyBearer(request, env.MCP_AUTH_TOKEN)) {
+        return jsonResponse(
+          401,
+          { error: 'Unauthorized', message: 'Bearer token required' },
+          { 'WWW-Authenticate': 'Bearer' }
+        );
+      }
+    }
+
+    // Rewrite the path before forwarding so the containerized Express app (which only
+    // serves /mcp and /ping) keeps working unchanged.
+    url.pathname = route.rewriteTo;
+    const forwarded = new Request(url.toString(), request);
+
     const container = getContainer(env.BRAVE_SEARCH_CONTAINER, 'default');
 
     try {
@@ -78,20 +112,14 @@ export default {
         },
       });
 
-      return container.fetch(request);
+      return container.fetch(forwarded);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Container startup failed:', message);
-      return new Response(
-        JSON.stringify({
-          error: 'Container Error',
-          message: `Failed to start MCP container: ${message}`,
-        }),
-        {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return jsonResponse(503, {
+        error: 'Container Error',
+        message: `Failed to start MCP container: ${message}`,
+      });
     }
   },
 };

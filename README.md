@@ -137,6 +137,73 @@ Options:
   --stateless  <boolean>      HTTP Stateless flag
 ```
 
+## Cloudflare Workers deployment
+
+This fork is also deployed as a Cloudflare Worker + Container. The Worker entry point (`src/worker.ts`) terminates Bearer auth on the public surface and forwards to the containerized HTTP MCP server.
+
+### Routing topology
+
+| Caller | URL | Auth |
+| --- | --- | --- |
+| Public client (Claude Desktop, curl, etc.) | `https://mcp.memenow.xyz/brave/mcp` | `Authorization: Bearer ${MCP_AUTH_TOKEN}` |
+| Public health probe | `https://mcp.memenow.xyz/brave/ping` | none |
+| Internal Worker (same Cloudflare account) | `env.BRAVE_MCP.fetch(new Request("https://internal/internal/mcp", …))` | none — service binding bypasses the public route |
+| Anything else on the public surface | — | `404` |
+
+`workers.dev` is disabled (`workers_dev: false` in `wrangler.jsonc`), so the `/internal/*` path cannot leak through the default subdomain.
+
+### Required secrets
+
+Set these via `wrangler secret put` before `npm run cf:deploy`:
+
+- `BRAVE_API_KEY` — upstream Brave Search API key.
+- `MCP_AUTH_TOKEN` — shared secret for public Bearer auth. Generate with `openssl rand -hex 32` or equivalent.
+
+### Public client example
+
+```bash
+curl -X POST https://mcp.memenow.xyz/brave/mcp \
+  -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+### Service-binding example (other Worker in same account)
+
+In the calling Worker's `wrangler.jsonc`:
+
+```jsonc
+"services": [
+  { "binding": "BRAVE_MCP", "service": "brave-search-mcp-server" }
+]
+```
+
+In the calling Worker's code:
+
+```ts
+const res = await env.BRAVE_MCP.fetch(
+  new Request('https://internal/internal/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  })
+);
+```
+
+No `Authorization` header is required — service-binding calls do not traverse the public edge and therefore bypass the public route's Bearer check.
+
+### Local development
+
+```bash
+cat > .dev.vars <<'EOF'
+BRAVE_API_KEY = "<your-brave-key>"
+MCP_AUTH_TOKEN = "dev-token-123"
+EOF
+npm run cf:dev
+```
+
+The dev server listens on `http://localhost:8787`. Public paths are `/brave/mcp` and `/brave/ping`; the service-binding-only path is `/internal/mcp`.
+
 ## Installation
 
 ### Installing via Smithery
