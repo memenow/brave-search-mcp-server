@@ -5,22 +5,51 @@
  * and requires `Authorization: Bearer ${MCP_AUTH_TOKEN}` on `/brave/mcp`. The `/internal/mcp`
  * path has no public route mapped to it and is reachable only via service bindings from other
  * Workers in the same account — those callers do not carry a credential.
+ *
+ * Defense in depth: every request the Worker forwards into the Container carries an
+ * `x-internal-secret: ${INTERNAL_SECRET}` header, and the container-side Express app
+ * rejects any /mcp request whose header does not match. This way, even if a routes
+ * entry accidentally exposes /internal/*, or the container port is reached directly,
+ * Brave Search API quota stays protected.
  */
-import { Container, getContainer } from '@cloudflare/containers';
+import { Container, getRandom } from '@cloudflare/containers';
 import { verifyBearer } from './worker-auth.js';
+
+/**
+ * Environment interface shared by the Worker and the Container Durable Object.
+ * Secrets are set via `wrangler secret put …` and never bundled.
+ */
+interface Env {
+  BRAVE_SEARCH_CONTAINER: DurableObjectNamespace<BraveSearchContainer>;
+  BRAVE_API_KEY: string;
+  MCP_AUTH_TOKEN: string;
+  INTERNAL_SECRET: string;
+}
 
 /**
  * Brave Search MCP Container configuration.
  * Runs the MCP HTTP server on port 8080.
  *
- * Transport, port, and host are configured via Dockerfile.cloudflare ENV defaults:
+ * `envVars` is populated in the constructor so secrets are re-applied every time
+ * the container starts (cold start, post-sleep restart, redeploy). Setting them
+ * here rather than in `startAndWaitForPorts({ startOptions: { envVars } })` is the
+ * documented pattern: per-request startOptions are a no-op against an already-warm
+ * container, which would silently leave a stale process.env in place.
+ *
+ * Transport/port/host are configured via Dockerfile.cloudflare ENV defaults:
  *   BRAVE_MCP_TRANSPORT=http, BRAVE_MCP_PORT=8080, BRAVE_MCP_HOST=0.0.0.0
  */
-export class BraveSearchContainer extends Container {
+export class BraveSearchContainer extends Container<Env> {
   defaultPort = 8080;
-
-  // Keep container alive for 10 minutes after last activity
   sleepAfter = '10m';
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.envVars = {
+      BRAVE_API_KEY: env.BRAVE_API_KEY ?? '',
+      INTERNAL_SECRET: env.INTERNAL_SECRET ?? '',
+    };
+  }
 
   override onStart() {
     console.log('Brave Search MCP Container started');
@@ -29,16 +58,6 @@ export class BraveSearchContainer extends Container {
   override onStop() {
     console.log('Brave Search MCP Container stopped');
   }
-}
-
-/**
- * Environment interface for the Worker.
- * Secrets are set via `wrangler secret put …` and never bundled.
- */
-interface Env {
-  BRAVE_SEARCH_CONTAINER: DurableObjectNamespace<BraveSearchContainer>;
-  BRAVE_API_KEY: string;
-  MCP_AUTH_TOKEN: string;
 }
 
 type Route = { rewriteTo: string; requireAuth: boolean };
@@ -50,6 +69,10 @@ const ROUTES: Record<string, Route> = {
   '/internal/mcp': { rewriteTo: '/mcp', requireAuth: false },
 };
 
+// Must match wrangler.jsonc containers[].max_instances so getRandom can spread
+// load across every provisioned container.
+const CONTAINER_FANOUT = 2;
+
 const jsonResponse = (
   status: number,
   body: Record<string, unknown>,
@@ -59,6 +82,20 @@ const jsonResponse = (
     status,
     headers: { 'Content-Type': 'application/json', ...(extraHeaders ?? {}) },
   });
+
+const generateRequestId = (request: Request): string =>
+  request.headers.get('cf-ray') ?? crypto.randomUUID();
+
+const backendUnavailable = (requestId: string): Response =>
+  jsonResponse(503, {
+    error: 'Service Unavailable',
+    message: 'Backend temporarily unavailable',
+    requestId,
+  });
+
+const logEvent = (event: string, ctx: Record<string, unknown>): void => {
+  console.error(JSON.stringify({ event, ...ctx }));
+};
 
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
@@ -73,9 +110,8 @@ export default {
     }
 
     // Authenticate before any config-state check so unauthenticated probes on the
-    // public surface cannot distinguish "secret missing" from "auth required".
-    // A missing `MCP_AUTH_TOKEN` is treated as an auth failure (401), not a
-    // configuration error, to keep deployment state opaque to public callers.
+    // public surface cannot distinguish "secret missing" from "auth required". A
+    // missing `MCP_AUTH_TOKEN` is treated as a 401, not a configuration error.
     if (route.requireAuth) {
       if (!env.MCP_AUTH_TOKEN || !(await verifyBearer(request, env.MCP_AUTH_TOKEN))) {
         return jsonResponse(
@@ -86,44 +122,49 @@ export default {
       }
     }
 
+    const requestId = generateRequestId(request);
+
+    // Config-state errors collapse into the same generic 503 used for backend
+    // failures so unauthenticated callers on auth-free paths (e.g. /brave/ping)
+    // cannot distinguish "secret missing" from "backend down". Operators see the
+    // specific cause via console.error.
     if (!env.BRAVE_API_KEY) {
-      // Return the same generic 503 used for container startup failures so
-      // unauthenticated callers on auth-free paths (e.g. /brave/ping) cannot
-      // distinguish "secret missing" from "backend down". Operators see the
-      // specific cause via console.error.
-      console.error('Configuration Error: BRAVE_API_KEY is not configured');
-      return jsonResponse(503, {
-        error: 'Service Unavailable',
-        message: 'Backend temporarily unavailable',
-      });
+      logEvent('config_missing', { requestId, secret: 'BRAVE_API_KEY' });
+      return backendUnavailable(requestId);
     }
 
-    // Rewrite the path before forwarding so the containerized Express app (which only
-    // serves /mcp and /ping) keeps working unchanged.
+    if (!env.INTERNAL_SECRET) {
+      logEvent('config_missing', { requestId, secret: 'INTERNAL_SECRET' });
+      return backendUnavailable(requestId);
+    }
+
+    // Rewrite the path before forwarding so the containerized Express app (which
+    // only serves /mcp and /ping) keeps working unchanged. Strip the public
+    // Authorization header so it does not reach the container, and inject the
+    // internal secret that the container will require on /mcp.
     url.pathname = route.rewriteTo;
     const forwarded = new Request(url.toString(), request);
+    forwarded.headers.delete('authorization');
+    forwarded.headers.set('x-internal-secret', env.INTERNAL_SECRET);
 
-    const container = getContainer(env.BRAVE_SEARCH_CONTAINER, 'default');
+    // Round-robin across the provisioned container instances; Brave Search calls
+    // are stateless so any container can serve any request.
+    const container = await getRandom(env.BRAVE_SEARCH_CONTAINER, CONTAINER_FANOUT);
 
     try {
-      await container.startAndWaitForPorts({
-        startOptions: {
-          envVars: {
-            BRAVE_API_KEY: env.BRAVE_API_KEY,
-          },
-        },
-      });
-
-      return container.fetch(forwarded);
+      await container.startAndWaitForPorts();
     } catch (err) {
-      // Log the underlying cause for operators; return a generic message so
-      // backend infrastructure detail never leaks to the public surface.
       const detail = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Container startup failed:', detail);
-      return jsonResponse(503, {
-        error: 'Service Unavailable',
-        message: 'Backend temporarily unavailable',
-      });
+      logEvent('container_start_failed', { requestId, path: url.pathname, error: detail });
+      return backendUnavailable(requestId);
+    }
+
+    try {
+      return await container.fetch(forwarded);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Unknown error';
+      logEvent('container_fetch_failed', { requestId, path: url.pathname, error: detail });
+      return backendUnavailable(requestId);
     }
   },
 };

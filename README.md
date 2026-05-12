@@ -158,6 +158,7 @@ Set these via `wrangler secret put` before `npm run cf:deploy`:
 
 - `BRAVE_API_KEY` — upstream Brave Search API key.
 - `MCP_AUTH_TOKEN` — shared secret for public Bearer auth. Generate with `openssl rand -hex 32` or equivalent.
+- `INTERNAL_SECRET` — defense-in-depth secret the Worker injects as `x-internal-secret` on every request it forwards into the Container; the container-side Express app rejects any `/mcp` request whose header does not match. Generate independently from `MCP_AUTH_TOKEN` with `openssl rand -hex 32`.
 
 ### Public client example
 
@@ -198,6 +199,7 @@ No `Authorization` header is required — service-binding calls do not traverse 
 cat > .dev.vars <<'EOF'
 BRAVE_API_KEY = "<your-brave-key>"
 MCP_AUTH_TOKEN = "dev-token-123"
+INTERNAL_SECRET = "dev-internal-secret-456"
 EOF
 npm run cf:dev
 ```
