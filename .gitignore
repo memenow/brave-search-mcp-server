@@ -9,3 +9,7 @@ wrangler.toml.bak
 
 # Serena
 .serena/
+
+# Claude Code (personal)
+CLAUDE.local.md
+.claude/settings.local.json
