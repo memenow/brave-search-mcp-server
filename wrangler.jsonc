@@ -8,6 +8,14 @@
   "compatibility_flags": ["nodejs_compat"],
   "tsconfig": "tsconfig.worker.json",
 
+  // Public surface lives under the routed prefix only. The `/internal/*` path
+  // used by service-binding callers has no Workers route mapped to it, so it
+  // is unreachable from the public internet.
+  "workers_dev": false,
+  "routes": [{ "pattern": "mcp.memenow.xyz/brave/*", "zone_name": "memenow.xyz" }],
+
+  "observability": { "enabled": true },
+
   // Container configuration (array format for wrangler 4.x)
   "containers": [
     {

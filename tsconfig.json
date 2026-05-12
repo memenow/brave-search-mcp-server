@@ -12,5 +12,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "src/worker.ts"]
+  "exclude": ["node_modules", "src/worker.ts", "src/worker-auth.ts"]
 }
