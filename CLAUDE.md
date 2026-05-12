@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project shape
 
-Fork of `brave/brave-search-mcp-server`. A Model Context Protocol server exposing Brave Search (web, local, image, video, news, summarizer) over **two transports from the same codebase**:
+Fork of `brave/brave-search-mcp-server`. A Model Context Protocol server exposing Brave Search (web, local, image, video, news, summarizer) over **three transports from the same codebase**:
 
-- **STDIO** — default; entry `src/index.ts` → `dist/index.js` (also the npm `bin`).
-- **HTTP** — entry `src/server.ts`; enabled by `BRAVE_MCP_TRANSPORT=http` or `--transport http`.
-- **Cloudflare Workers + Containers** — entry `src/worker.ts`; built with `tsconfig.worker.json` (the root `tsconfig.json` **excludes** `src/worker.ts`).
+- **STDIO** — default; CLI entry `src/index.ts` → `dist/index.js` (also the npm `bin`). The MCP server is constructed by the `createMcpServer` factory in `src/server.ts` and connected to a STDIO transport by `src/protocols/stdio.ts`.
+- **HTTP** — same CLI entry; selected by `BRAVE_MCP_TRANSPORT=http` or `--transport http`. The Express app and `StreamableHTTPServerTransport` live in `src/protocols/http.ts`.
+- **Cloudflare Workers + Containers** — entry `src/worker.ts` (+ `src/worker-auth.ts`); built with `tsconfig.worker.json` (the root `tsconfig.json` **excludes** `src/worker.ts` and `src/worker-auth.ts`).
 
-Do not assume Node-only APIs in `src/worker.ts`; it runs on the Workers runtime with `nodejs_compat`.
+Do not assume Node-only APIs in `src/worker.ts` / `src/worker-auth.ts`; they run on the Workers runtime with `nodejs_compat`. `src/worker-auth.ts` uses Web Crypto (`crypto.subtle.timingSafeEqual`), not Node `crypto`.
 
 ## Commands
 
@@ -39,9 +39,9 @@ Package manager: **npm** (only `package-lock.json` is committed).
 
 - `BRAVE_API_KEY` — required for every transport.
 - `BRAVE_MCP_TRANSPORT` — `stdio` (default) or `http`.
-- `BRAVE_MCP_PORT` (default `8000`), `BRAVE_MCP_HOST` (default `0.0.0.0`), `BRAVE_MCP_LOG_LEVEL` (default `info`).
-- `BRAVE_MCP_ENABLED_TOOLS` / `BRAVE_MCP_DISABLED_TOOLS` — comma-separated tool allow/deny list.
-- `BRAVE_MCP_STATELESS` — HTTP stateless mode; default `true` (required for AWS Bedrock AgentCore).
+- `BRAVE_MCP_PORT` (code default `8080`; see `src/config.ts`), `BRAVE_MCP_HOST` (default `0.0.0.0`), `BRAVE_MCP_LOG_LEVEL` (default `info`).
+- `BRAVE_MCP_ENABLED_TOOLS` / `BRAVE_MCP_DISABLED_TOOLS` — whitespace-separated tool allow/deny list (parsed via `split(' ')` in `src/config.ts`).
+- `BRAVE_MCP_STATELESS` — HTTP stateless mode. **Code default is `false`** (`src/config.ts` schema + state both default to `false`); set the env var to `"true"` for AWS Bedrock AgentCore. The upstream README states a default of `"true"` — that line is inconsistent with the code; treat the source as authoritative.
 - `MCP_AUTH_TOKEN` — **Workers deployment only**; Bearer token required on the public `/brave/mcp` route. Set via `wrangler secret put MCP_AUTH_TOKEN`. Not consumed by the Node-side server.
 - `INTERNAL_SECRET` — **Workers deployment only**; secret the Worker injects as `x-internal-secret` on every request forwarded into the Container, and the container-side Express app verifies on `/mcp` via constant-time compare. Defense in depth against a misconfigured route exposing `/internal/*` directly. Set via `wrangler secret put INTERNAL_SECRET`. The Node-side server treats it as opt-in: unset = no check (preserves stdio / Docker / npm flows).
 
@@ -66,13 +66,14 @@ TypeScript: `strict: true`, `ES2022`, `NodeNext` module + resolution. Project is
 ## Gotchas
 
 - `dist/` is generated; never hand-edit. The release workflow publishes from `dist/`.
-- `src/worker.ts` uses a **separate** `tsconfig.worker.json`. Node-side `npm run build` will not catch worker-only type errors — run `npm run cf:dev` (or `wrangler deploy --dry-run`) when touching it.
+- `src/worker.ts` and `src/worker-auth.ts` use a **separate** `tsconfig.worker.json`. Node-side `npm run build` will not catch worker-only type errors — run `npm run cf:dev` (or `wrangler deploy --dry-run`) when touching them.
 - Cloudflare Containers are wired as **Durable Objects with SQLite** (`migrations[].tag: "v1"`, `new_sqlite_classes: ["BraveSearchContainer"]`). Renaming or removing the class requires a new migration tag — never edit the existing one.
 - `Dockerfile` (generic) and `Dockerfile.cloudflare` (Workers Container image) are distinct; the Cloudflare deploy uses the latter via `wrangler.jsonc`.
-- `BRAVE_API_KEY` must be set on the Cloudflare side (`wrangler secret put BRAVE_API_KEY`) before `cf:deploy`; it is not bundled.
-- `src/worker.ts` exposes two distinct path namespaces: `/brave/*` (public, served by the `routes` entry in `wrangler.jsonc`, Bearer-auth on `/brave/mcp`) and `/internal/mcp` (service-binding-only, no public route). Both are protected on the container side by `INTERNAL_SECRET` (see Required environment). The `/internal/*` path is **load-bearing** for other Workers in the account that bind this service — do not rename or move it without updating consumer Workers.
-- `src/worker.ts` uses `getRandom(env.BRAVE_SEARCH_CONTAINER, CONTAINER_FANOUT)` to fan out across the provisioned containers. `CONTAINER_FANOUT` **must match** `wrangler.jsonc containers[].max_instances` — keep them in lockstep when you change either.
-- Smithery has its own build pipeline (`smithery:build`) and reads `smithery.yaml` + `server.json` — keep those in sync with `package.json` `version` on releases.
+- `BRAVE_API_KEY`, `MCP_AUTH_TOKEN`, and `INTERNAL_SECRET` must all be set on the Cloudflare side (`wrangler secret put …`) before `cf:deploy`; none are bundled.
+- `src/worker.ts` declares a `ROUTES` table with three entries: `/brave/mcp` (public, requires Bearer auth via `MCP_AUTH_TOKEN`), `/brave/ping` (public, no auth), and `/internal/mcp` (service-binding-only, no Bearer auth, no public route). Public exposure is gated by the `routes` entry in `wrangler.jsonc` (`mcp.memenow.xyz/brave/*`) plus `workers_dev: false`. Both `/brave/mcp` and `/internal/mcp` are additionally protected on the container side by `x-internal-secret` (see `INTERNAL_SECRET` under Required environment). The `/internal/*` path is **load-bearing** for other Workers in the account that bind this service — do not rename or move it without updating consumer Workers.
+- Worker paths are **rewritten** before `container.fetch(...)` (`/brave/mcp` → `/mcp`, `/internal/mcp` → `/mcp`, `/brave/ping` → `/ping`); the Worker also strips the public `Authorization` header and injects `x-internal-secret` on the forwarded request, so the containerized Express app in `src/protocols/http.ts` keeps serving `/mcp` and `/ping` unchanged.
+- `src/worker.ts` fans out across container instances with `getRandom(env.BRAVE_SEARCH_CONTAINER, CONTAINER_FANOUT)`. `CONTAINER_FANOUT` **must match** `wrangler.jsonc containers[].max_instances` — keep them in lockstep when you change either.
+- Smithery has its own build pipeline (`smithery:build`) and reads `smithery.yaml` + `server.json` — keep those (and `marketplace-revision-release.json`) in sync with `package.json` `version` on releases.
 - Response schema for `brave_image_search` changed in v2 (no base64 payload); see `README.md` migration notes when touching image-tool callers.
 
 ## Skills available in `.claude/skills/`
