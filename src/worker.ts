@@ -77,7 +77,7 @@ export default {
     // A missing `MCP_AUTH_TOKEN` is treated as an auth failure (401), not a
     // configuration error, to keep deployment state opaque to public callers.
     if (route.requireAuth) {
-      if (!env.MCP_AUTH_TOKEN || !verifyBearer(request, env.MCP_AUTH_TOKEN)) {
+      if (!env.MCP_AUTH_TOKEN || !(await verifyBearer(request, env.MCP_AUTH_TOKEN))) {
         return jsonResponse(
           401,
           { error: 'Unauthorized', message: 'Bearer token required' },
@@ -87,9 +87,14 @@ export default {
     }
 
     if (!env.BRAVE_API_KEY) {
-      return jsonResponse(500, {
-        error: 'Configuration Error',
-        message: 'BRAVE_API_KEY is not configured. Set it using: wrangler secret put BRAVE_API_KEY',
+      // Return the same generic 503 used for container startup failures so
+      // unauthenticated callers on auth-free paths (e.g. /brave/ping) cannot
+      // distinguish "secret missing" from "backend down". Operators see the
+      // specific cause via console.error.
+      console.error('Configuration Error: BRAVE_API_KEY is not configured');
+      return jsonResponse(503, {
+        error: 'Service Unavailable',
+        message: 'Backend temporarily unavailable',
       });
     }
 
