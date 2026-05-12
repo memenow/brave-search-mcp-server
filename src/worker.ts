@@ -72,28 +72,30 @@ export default {
       });
     }
 
-    if (!env.BRAVE_API_KEY) {
-      return jsonResponse(500, {
-        error: 'Configuration Error',
-        message: 'BRAVE_API_KEY is not configured. Set it using: wrangler secret put BRAVE_API_KEY',
-      });
-    }
-
+    // Authenticate before any config-state check so unauthenticated probes on the
+    // public surface cannot distinguish "secret missing" from "auth required".
+    // A missing `MCP_AUTH_TOKEN` is treated as an auth failure (401), not a
+    // configuration error, to keep deployment state opaque to public callers.
     if (route.requireAuth) {
-      if (!env.MCP_AUTH_TOKEN) {
-        return jsonResponse(500, {
-          error: 'Configuration Error',
-          message:
-            'MCP_AUTH_TOKEN is not configured. Set it using: wrangler secret put MCP_AUTH_TOKEN',
-        });
-      }
-      if (!verifyBearer(request, env.MCP_AUTH_TOKEN)) {
+      if (!env.MCP_AUTH_TOKEN || !(await verifyBearer(request, env.MCP_AUTH_TOKEN))) {
         return jsonResponse(
           401,
           { error: 'Unauthorized', message: 'Bearer token required' },
           { 'WWW-Authenticate': 'Bearer' }
         );
       }
+    }
+
+    if (!env.BRAVE_API_KEY) {
+      // Return the same generic 503 used for container startup failures so
+      // unauthenticated callers on auth-free paths (e.g. /brave/ping) cannot
+      // distinguish "secret missing" from "backend down". Operators see the
+      // specific cause via console.error.
+      console.error('Configuration Error: BRAVE_API_KEY is not configured');
+      return jsonResponse(503, {
+        error: 'Service Unavailable',
+        message: 'Backend temporarily unavailable',
+      });
     }
 
     // Rewrite the path before forwarding so the containerized Express app (which only
@@ -114,11 +116,13 @@ export default {
 
       return container.fetch(forwarded);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Container startup failed:', message);
+      // Log the underlying cause for operators; return a generic message so
+      // backend infrastructure detail never leaks to the public surface.
+      const detail = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Container startup failed:', detail);
       return jsonResponse(503, {
-        error: 'Container Error',
-        message: `Failed to start MCP container: ${message}`,
+        error: 'Service Unavailable',
+        message: 'Backend temporarily unavailable',
       });
     }
   },
