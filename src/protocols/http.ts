@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import express, { type Request, type Response } from 'express';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import config from '../config.js';
 import createMcpServer from '../server.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -45,13 +45,19 @@ const getTransport = async (request: Request): Promise<StreamableHTTPServerTrans
       sessionIdGenerator: undefined,
     });
   } else {
-    // Otherwise, start a new transport/session
+    // Stateful: register the transport in `transports` on session init and remove it
+    // on close so the map cannot grow without bound while the server runs.
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId) => {
         transports.set(sessionId, transport);
       },
     });
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        transports.delete(transport.sessionId);
+      }
+    };
   }
 
   const mcpServer = createMcpServer();
@@ -59,12 +65,39 @@ const getTransport = async (request: Request): Promise<StreamableHTTPServerTrans
   return transport;
 };
 
+/**
+ * Container-side defense in depth: the Cloudflare Worker injects `x-internal-secret`
+ * on every forwarded /mcp request. We constant-time compare it against the
+ * INTERNAL_SECRET env var so that even if the container port is reached directly
+ * (route misconfig, accidental publish, etc.) the Brave API quota stays protected.
+ *
+ * The check is opt-in: if INTERNAL_SECRET is unset (e.g. local stdio dev, plain
+ * `npx` consumers, Docker users) the middleware passes through unchanged.
+ */
+const requireInternalSecret = (req: Request, res: Response, next: NextFunction) => {
+  const expected = process.env.INTERNAL_SECRET;
+  if (!expected) return next();
+
+  const provided = req.header('x-internal-secret') ?? '';
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    res.status(401).json({
+      id: null,
+      jsonrpc: '2.0',
+      error: { code: -32001, message: 'Unauthorized' },
+    });
+    return;
+  }
+  next();
+};
+
 const createApp = () => {
   const app = express();
 
   app.use(express.json());
 
-  app.all('/mcp', async (req: Request, res: Response) => {
+  app.all('/mcp', requireInternalSecret, async (req: Request, res: Response) => {
     try {
       const transport = await getTransport(req);
       await transport.handleRequest(req, res, req.body);
