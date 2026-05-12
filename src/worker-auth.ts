@@ -13,8 +13,15 @@ export function verifyBearer(request: Request, expected: string): boolean {
   const header = request.headers.get('authorization');
   if (!header) return false;
 
-  const [scheme, token] = header.split(' ', 2);
-  if (scheme?.toLowerCase() !== 'bearer' || !token) return false;
+  // Parse with indexOf so a token containing spaces is preserved verbatim.
+  // `String.prototype.split(' ', 2)` would silently drop everything past the
+  // second segment, which can make a rotation to a space-bearing token fail
+  // authentication for the legitimate value.
+  const space = header.indexOf(' ');
+  if (space === -1) return false;
+  const scheme = header.slice(0, space);
+  const token = header.slice(space + 1);
+  if (scheme.toLowerCase() !== 'bearer' || !token) return false;
 
   const provided = encoder.encode(token);
   const target = encoder.encode(expected);
