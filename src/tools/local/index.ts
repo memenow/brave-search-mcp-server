@@ -159,9 +159,11 @@ const formatOpeningHours = (openingHours?: OpeningHours): Record<string, string>
       const dayName = full_name.toLowerCase();
       const existingEntry = dayHours.find(([name]) => name === dayName);
 
-      existingEntry
-        ? existingEntry[1].push(`${opens}-${closes}`)
-        : dayHours.push([dayName, [`${opens}-${closes}`]]);
+      if (existingEntry) {
+        existingEntry[1].push(`${opens}-${closes}`);
+      } else {
+        dayHours.push([dayName, [`${opens}-${closes}`]]);
+      }
     }
   }
 
