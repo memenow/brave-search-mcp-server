@@ -1,6 +1,6 @@
 import { RATE_LIMIT } from './constants.js';
 
-let requestCount = {
+const requestCount = {
   second: 0,
   month: 0,
   lastReset: Date.now(),

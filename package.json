@@ -33,6 +33,8 @@
     "watch": "tsc --watch",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint --fix \"src/**/*.ts\"",
     "inspector": "npx @modelcontextprotocol/inspector",
     "inspector:http": "npx @modelcontextprotocol/inspector --transport http",
     "cf:dev": "wrangler dev",
@@ -49,13 +51,18 @@
   "devDependencies": {
     "@cloudflare/containers": "^0.1.0",
     "@cloudflare/workers-types": "^4.20260226.1",
+    "@eslint/js": "^10.0.1",
     "@smithery/cli": "2.2.1",
     "@types/express": "5.0.6",
     "@types/node": "24.10.13",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
     "prettier": "3.8.1",
     "shx": "0.4.0",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
+    "typescript-eslint": "^8.59.2",
     "wrangler": "^4.69.0"
   },
   "overrides": {
