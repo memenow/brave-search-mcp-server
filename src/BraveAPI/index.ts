@@ -95,17 +95,27 @@ async function issueRequest<T extends keyof Endpoints>(
 
   // Handle Error
   if (!response.ok) {
-    let errorMessage = `${response.status} ${response.statusText}`;
-
+    // Log the upstream error body to stderr for operators, but surface only the
+    // coarse status to the MCP client. Brave's error payloads echo plan/quota
+    // metadata that should not flow through to downstream callers.
     try {
       const responseBody = await response.json();
-      errorMessage += `\n${stringify(responseBody, true)}`;
-    } catch (error) {
-      errorMessage += `\n${await response.text()}`;
+      console.error(
+        `[brave-search-mcp] upstream ${endpoint} error ${response.status}:`,
+        stringify(responseBody, true)
+      );
+    } catch {
+      try {
+        const body = await response.text();
+        console.error(
+          `[brave-search-mcp] upstream ${endpoint} error ${response.status}: ${body.slice(0, 1024)}`
+        );
+      } catch {
+        // ignore
+      }
     }
 
-    // TODO (Sampson): Setup proper error handling, updating state, etc.
-    throw new Error(errorMessage);
+    throw new Error(`Brave Search API request failed: ${response.status} ${response.statusText}`);
   }
 
   // Return Response
