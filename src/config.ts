@@ -52,6 +52,9 @@ type Configuration = {
   enabledTools: string[];
   disabledTools: string[];
   stateless: boolean;
+  authToken: string;
+  allowedHosts: string[];
+  allowedOrigins: string[];
 };
 
 const state: Configuration & { ready: boolean } = {
@@ -64,7 +67,16 @@ const state: Configuration & { ready: boolean } = {
   enabledTools: [],
   disabledTools: [],
   stateless: false,
+  authToken: process.env.BRAVE_MCP_AUTH_TOKEN ?? '',
+  allowedHosts: [],
+  allowedOrigins: [],
 };
+
+const parseCsv = (value: string | undefined): string[] =>
+  (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 
 export function isToolPermittedByUser(toolName: string): boolean {
   return state.enabledTools.length > 0
@@ -106,6 +118,21 @@ export function getOptions(): Configuration | false {
       'whether the server should be stateless',
       process.env.BRAVE_MCP_STATELESS === 'true' ? true : false
     )
+    .option(
+      '--auth-token <string>',
+      'bearer token required on /mcp when HTTP transport is exposed beyond loopback',
+      process.env.BRAVE_MCP_AUTH_TOKEN ?? ''
+    )
+    .option(
+      '--allowed-hosts <hosts>',
+      'comma-separated Host header allowlist for DNS rebinding protection',
+      parseCsv(process.env.BRAVE_MCP_ALLOWED_HOSTS)
+    )
+    .option(
+      '--allowed-origins <origins>',
+      'comma-separated Origin header allowlist for DNS rebinding protection',
+      parseCsv(process.env.BRAVE_MCP_ALLOWED_ORIGINS)
+    )
     .allowUnknownOption()
     .parse(process.argv);
 
@@ -115,6 +142,17 @@ export function getOptions(): Configuration | false {
   // Validate tool inclusion configuration
   const enabledTools = options.enabledTools.filter((t: string) => t.trim().length > 0);
   const disabledTools = options.disabledTools.filter((t: string) => t.trim().length > 0);
+
+  const normalizeListOption = (value: unknown): string[] => {
+    if (Array.isArray(value)) {
+      return value.flatMap((entry) => (typeof entry === 'string' ? parseCsv(entry) : []));
+    }
+    if (typeof value === 'string') return parseCsv(value);
+    return [];
+  };
+
+  const allowedHosts = normalizeListOption(options.allowedHosts);
+  const allowedOrigins = normalizeListOption(options.allowedOrigins);
 
   if (enabledTools.length > 0 && disabledTools.length > 0) {
     console.error('Error: --enabled-tools and --disabled-tools cannot be used together');
@@ -178,9 +216,12 @@ export function getOptions(): Configuration | false {
   state.enabledTools = options.enabledTools;
   state.disabledTools = options.disabledTools;
   state.stateless = options.stateless;
+  state.authToken = options.authToken ?? '';
+  state.allowedHosts = allowedHosts;
+  state.allowedOrigins = allowedOrigins;
   state.ready = true;
 
-  return options as Configuration;
+  return { ...options, allowedHosts, allowedOrigins } as Configuration;
 }
 
 export function setOptions(options: SmitheryConfig) {

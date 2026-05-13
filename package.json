@@ -42,7 +42,7 @@
     "cf:tail": "wrangler tail"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "14.0.3",
     "dotenv": "17.3.1",
     "express": "5.2.1",
@@ -63,7 +63,7 @@
     "tsx": "4.21.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.59.2",
-    "wrangler": "^4.69.0"
+    "wrangler": "^4.90.1"
   },
   "overrides": {
     "formdata-node": "6.0.3",

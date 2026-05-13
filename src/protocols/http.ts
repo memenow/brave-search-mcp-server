@@ -2,6 +2,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import config from '../config.js';
 import createMcpServer from '../server.js';
+import { bearerAuth, dnsRebindingGuard, isLoopbackHost } from './auth.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequest, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
@@ -95,19 +96,46 @@ const requireInternalSecret = (req: Request, res: Response, next: NextFunction) 
 const createApp = () => {
   const app = express();
 
+  // Don't advertise Express to clients and don't trust X-Forwarded-* headers
+  // unless the operator explicitly configures a reverse proxy.
+  app.disable('x-powered-by');
+  app.set('trust proxy', false);
+
   app.use(express.json());
 
-  app.all('/mcp', requireInternalSecret, async (req: Request, res: Response) => {
-    try {
-      const transport = await getTransport(req);
-      await transport.handleRequest(req, res, req.body);
-    } catch (error) {
-      console.error(error);
-      if (!res.headersSent) {
-        yieldGenericServerError(res);
+  // DNS-rebinding protection: enforced globally so /mcp, /ping, and anything we
+  // mount in the future all benefit. Loopback aliases are always permitted; the
+  // configured bind host:port is added automatically; operators can extend via
+  // BRAVE_MCP_ALLOWED_HOSTS / BRAVE_MCP_ALLOWED_ORIGINS.
+  app.use(
+    dnsRebindingGuard({
+      bindHost: config.host,
+      bindPort: config.port,
+      allowedHosts: config.allowedHosts,
+      allowedOrigins: config.allowedOrigins,
+    })
+  );
+
+  // Bearer auth on /mcp is opt-in: the middleware no-ops when BRAVE_MCP_AUTH_TOKEN
+  // is unset, preserving stdio / Docker / npm flows. It is independent of the
+  // container-side x-internal-secret check above: the Worker path uses the
+  // INTERNAL_SECRET header, while a standalone HTTP deployment uses Bearer.
+  app.all(
+    '/mcp',
+    bearerAuth(config.authToken),
+    requireInternalSecret,
+    async (req: Request, res: Response) => {
+      try {
+        const transport = await getTransport(req);
+        await transport.handleRequest(req, res, req.body);
+      } catch (error) {
+        console.error(error);
+        if (!res.headersSent) {
+          yieldGenericServerError(res);
+        }
       }
     }
-  });
+  );
 
   app.all('/ping', (req: Request, res: Response) => {
     res.status(200).json({ message: 'pong' });
@@ -123,6 +151,15 @@ const start = () => {
   }
 
   const app = createApp();
+
+  if (!config.authToken && !isLoopbackHost(config.host)) {
+    console.warn(
+      `[brave-search-mcp] WARNING: HTTP transport is bound to ${config.host} without a bearer ` +
+        `token. Anyone who can reach this port can call MCP tools and consume your Brave API ` +
+        `quota. Set BRAVE_MCP_AUTH_TOKEN, bind to 127.0.0.1, or place an authenticating proxy ` +
+        `in front of this server.`
+    );
+  }
 
   app.listen(config.port, config.host, () => {
     console.log(`Server is running on http://${config.host}:${config.port}/mcp`);
