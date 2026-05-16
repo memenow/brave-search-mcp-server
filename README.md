@@ -114,12 +114,12 @@ The server supports the following environment variables:
 
 - `BRAVE_API_KEY`: Your Brave Search API key (required)
 - `BRAVE_MCP_TRANSPORT`: Transport mode ("http" or "stdio", default: "stdio")
-- `BRAVE_MCP_PORT`: HTTP server port (default: 8000)
+- `BRAVE_MCP_PORT`: HTTP server port (default: 8080)
 - `BRAVE_MCP_HOST`: HTTP server host (default: "0.0.0.0")
 - `BRAVE_MCP_LOG_LEVEL`: Desired logging level("debug", "info", "notice", "warning", "error", "critical", "alert", or "emergency", default: "info")
 - `BRAVE_MCP_ENABLED_TOOLS`: When used, specifies a whitelist for supported tools
 - `BRAVE_MCP_DISABLED_TOOLS`: When used, specifies a blacklist for supported tools
-- `BRAVE_MCP_STATELESS`: HTTP stateless mode (default: "true").  When running on Amazon Bedrock Agentcore, set to "true".
+- `BRAVE_MCP_STATELESS`: HTTP stateless mode (default: "false"). Set to "true" when running on Amazon Bedrock AgentCore.
 
 ### Command Line Options
 
@@ -158,7 +158,6 @@ Set these via `wrangler secret put` before `npm run cf:deploy`:
 
 - `BRAVE_API_KEY` — upstream Brave Search API key.
 - `MCP_AUTH_TOKEN` — shared secret for public Bearer auth. Generate with `openssl rand -hex 32` or equivalent.
-- `INTERNAL_SECRET` — defense-in-depth secret the Worker injects as `x-internal-secret` on every request it forwards into the Container; the container-side Express app rejects any `/mcp` request whose header does not match. Generate independently from `MCP_AUTH_TOKEN` with `openssl rand -hex 32`.
 
 ### Public client example
 
@@ -199,7 +198,6 @@ No `Authorization` header is required — service-binding calls do not traverse 
 cat > .dev.vars <<'EOF'
 BRAVE_API_KEY = "<your-brave-key>"
 MCP_AUTH_TOKEN = "dev-token-123"
-INTERNAL_SECRET = "dev-internal-secret-456"
 EOF
 npm run cf:dev
 ```
@@ -396,8 +394,8 @@ STDIO is the default mode. For HTTP mode testing, add `--transport http` to the 
 - `npm run format:check`: Check code formatting
 - `npm run prepare`: Format and build (runs automatically on npm install)
 
-- `npm run inspector`: Launch an instance of MCP Inspector
-- `npm run inspector:stdio`: Launch a instance of MCP Inspector, configured for STDIO
+- `npm run inspector`: Launch an instance of MCP Inspector (STDIO)
+- `npm run inspector:http`: Launch an instance of MCP Inspector configured for HTTP transport
 - `npm run smithery:build`: Build the project for smithery.ai
 - `npm run smithery:dev`: Launch the development environment for smithery.ai
 
