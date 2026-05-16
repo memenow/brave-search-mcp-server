@@ -46,13 +46,19 @@ const getTransport = async (request: Request): Promise<StreamableHTTPServerTrans
       sessionIdGenerator: undefined,
     });
   } else {
-    // Otherwise, start a new transport/session
+    // Stateful: register the transport on session init and evict it on close so
+    // the Map cannot grow without bound while the server runs.
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId) => {
         transports.set(sessionId, transport);
       },
     });
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        transports.delete(transport.sessionId);
+      }
+    };
   }
 
   const mcpServer = createMcpServer();

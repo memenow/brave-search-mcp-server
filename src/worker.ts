@@ -114,12 +114,15 @@ export default {
         },
       });
 
-      return container.fetch(forwarded);
+      // Await so rejections from container.fetch (e.g. the container exits
+      // between readiness and fetch, or the connection is reset) land in the
+      // catch below instead of escaping as an unhandled Worker error.
+      return await container.fetch(forwarded);
     } catch (err) {
       // Log the underlying cause for operators; return a generic message so
       // backend infrastructure detail never leaks to the public surface.
       const detail = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Container startup failed:', detail);
+      console.error('Container request failed:', detail);
       return jsonResponse(503, {
         error: 'Service Unavailable',
         message: 'Backend temporarily unavailable',
