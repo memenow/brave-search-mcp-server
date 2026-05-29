@@ -1,6 +1,10 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
+/**
+ * Reserved: not invoked by either transport — neither the STDIO nor the HTTP server
+ * installs a custom SIGINT handler today. See docs/architecture.md ("Reserved code").
+ */
 export function registerSigIntHandler(
   transports: Map<string, StdioServerTransport | StreamableHTTPServerTransport>
 ) {

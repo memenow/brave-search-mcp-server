@@ -6,6 +6,11 @@ const requestCount = {
   lastReset: Date.now(),
 };
 
+/**
+ * Reserved: not currently wired up. Its only call site, in `BraveAPI.issueRequest`,
+ * is commented out, so no rate limiting is enforced today. See docs/architecture.md
+ * ("Reserved code") and docs/security.md ("Known gaps").
+ */
 export function checkRateLimit() {
   const now = Date.now();
   if (now - requestCount.lastReset > 1000) {
