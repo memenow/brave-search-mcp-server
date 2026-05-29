@@ -62,7 +62,7 @@ Searches for videos with comprehensive metadata and thumbnail information.
 - `freshness` (string, optional): Time filter ("pd", "pw", "pm", "py", or date range)
 
 ### Image Search (`brave_image_search`)
-Searches for images with automatic fetching and base64 encoding for direct display.
+Searches for images and returns image URLs with metadata (title, source page, dimensions, confidence). As of v2.x the response no longer embeds base64-encoded image data — see the [Migration](#response-structure-of-brave_image_search) notes above.
 
 **Parameters:**
 - `query` (string, required): Search terms (max 400 chars, 50 words)
@@ -120,6 +120,9 @@ The server supports the following environment variables:
 - `BRAVE_MCP_ENABLED_TOOLS`: When used, specifies a whitelist for supported tools
 - `BRAVE_MCP_DISABLED_TOOLS`: When used, specifies a blacklist for supported tools
 - `BRAVE_MCP_STATELESS`: HTTP stateless mode (default: "false"). Set to "true" when running on Amazon Bedrock AgentCore.
+- `BRAVE_MCP_AUTH_TOKEN`: Bearer token required on the HTTP `/mcp` route (default: unset = auth disabled). Strongly recommended whenever the HTTP transport is bound to a non-loopback host. Not used by the Cloudflare Worker, which authenticates with `MCP_AUTH_TOKEN` at the edge.
+- `BRAVE_MCP_ALLOWED_HOSTS`: Comma-separated extra `Host` header values accepted by the DNS-rebinding guard (HTTP transport).
+- `BRAVE_MCP_ALLOWED_ORIGINS`: Comma-separated `Origin` header allowlist for the DNS-rebinding guard (HTTP transport).
 
 ### Command Line Options
 
@@ -135,7 +138,12 @@ Options:
   --enabled-tools             Tools whitelist (only the specified tools will be enabled)
   --disabled-tools            Tools blacklist (included tools will be disabled)
   --stateless  <boolean>      HTTP Stateless flag
+  --auth-token <string>       Bearer token required on /mcp (HTTP transport)
+  --allowed-hosts <hosts>     Comma-separated Host allowlist (DNS-rebinding guard)
+  --allowed-origins <origins> Comma-separated Origin allowlist (DNS-rebinding guard)
 ```
+
+> **Note:** `--enabled-tools` / `--disabled-tools` are whitespace-separated, while `--allowed-hosts` / `--allowed-origins` are comma-separated. See [`docs/configuration.md`](docs/configuration.md).
 
 ## Cloudflare Workers deployment
 
@@ -203,6 +211,15 @@ npm run cf:dev
 ```
 
 The dev server listens on `http://localhost:8787`. Public paths are `/brave/mcp` and `/brave/ping`; the service-binding-only path is `/internal/mcp`.
+
+## Further documentation
+
+This fork keeps deployment- and maintainer-specific documentation under [`docs/`](docs/):
+
+- [`docs/architecture.md`](docs/architecture.md) — module map, the three transports, and the request lifecycle.
+- [`docs/configuration.md`](docs/configuration.md) — authoritative environment variable and CLI flag reference.
+- [`docs/deployment.md`](docs/deployment.md) — STDIO, HTTP, Docker, and Cloudflare deployment procedures.
+- [`docs/security.md`](docs/security.md) — authentication model, DNS-rebinding protection, and known gaps.
 
 ## Installation
 

@@ -7,10 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Fork of `brave/brave-search-mcp-server`. A Model Context Protocol server exposing Brave Search (web, local, image, video, news, summarizer) over **three transports from the same codebase**:
 
 - **STDIO** — default; CLI entry `src/index.ts` → `dist/index.js` (also the npm `bin`). The MCP server is constructed by the `createMcpServer` factory in `src/server.ts` and connected to a STDIO transport by `src/protocols/stdio.ts`.
-- **HTTP** — same CLI entry; selected by `BRAVE_MCP_TRANSPORT=http` or `--transport http`. The Express app and `StreamableHTTPServerTransport` live in `src/protocols/http.ts`.
+- **HTTP** — same CLI entry; selected by `BRAVE_MCP_TRANSPORT=http` or `--transport http`. The Express app and `StreamableHTTPServerTransport` live in `src/protocols/http.ts`. Opt-in Bearer auth and a global DNS-rebinding guard live in `src/protocols/auth.ts`.
 - **Cloudflare Workers + Containers** — entry `src/worker.ts` (+ `src/worker-auth.ts`); built with `tsconfig.worker.json` (the root `tsconfig.json` **excludes** `src/worker.ts` and `src/worker-auth.ts`).
 
 Do not assume Node-only APIs in `src/worker.ts` / `src/worker-auth.ts`; they run on the Workers runtime with `nodejs_compat`. `src/worker-auth.ts` uses Web Crypto (`crypto.subtle.timingSafeEqual`), not Node `crypto`.
+
+In-depth maintainer documentation lives under [`docs/`](docs/) — architecture, configuration, deployment, and security.
 
 ## Commands
 
@@ -39,12 +41,13 @@ Package manager: **npm** (only `package-lock.json` is committed).
 
 - `BRAVE_API_KEY` — required for every transport.
 - `BRAVE_MCP_TRANSPORT` — `stdio` (default) or `http`.
-- `BRAVE_MCP_PORT` (default `8080`, see `src/config.ts:97`), `BRAVE_MCP_HOST` (default `0.0.0.0`), `BRAVE_MCP_LOG_LEVEL` (default `info`).
+- `BRAVE_MCP_PORT` (default `8080`), `BRAVE_MCP_HOST` (default `0.0.0.0`), `BRAVE_MCP_LOG_LEVEL` (default `info`) — defaults live in the `state` object and the CLI option defaults in `src/config.ts`.
 - `BRAVE_MCP_ENABLED_TOOLS` / `BRAVE_MCP_DISABLED_TOOLS` — whitespace-separated tool allow/deny list (parsed via `split(' ')` in `src/config.ts`).
-- `BRAVE_MCP_STATELESS` — HTTP stateless mode; schema and runtime defaults are `false` (`src/config.ts:39`, `:66`). The CLI normaliser only flips to `true` when `process.env.BRAVE_MCP_STATELESS === 'true'` (`src/config.ts:107`), so AWS Bedrock AgentCore deployments must set the env var explicitly.
+- `BRAVE_MCP_STATELESS` — HTTP stateless mode; the Zod `configSchema` and the runtime `state` object both default to `false` in `src/config.ts`. The CLI normaliser only flips it to `true` when `process.env.BRAVE_MCP_STATELESS === 'true'`, so AWS Bedrock AgentCore deployments must set the env var explicitly.
+- `BRAVE_MCP_AUTH_TOKEN` / `BRAVE_MCP_ALLOWED_HOSTS` / `BRAVE_MCP_ALLOWED_ORIGINS` — **HTTP (Node) transport only**, all opt-in (`src/protocols/auth.ts`). `BRAVE_MCP_AUTH_TOKEN` gates a constant-time Bearer check on `/mcp` (unset = no auth); the two list vars extend the global DNS-rebinding guard's `Host`/`Origin` allowlists. These two are **comma-separated** (`parseCsv`), unlike the space-separated tool lists above. None are consumed by the Worker, which terminates auth at the edge with `MCP_AUTH_TOKEN`.
 - `MCP_AUTH_TOKEN` — **Workers deployment only**; Bearer token required on the public `/brave/mcp` route. Set via `wrangler secret put MCP_AUTH_TOKEN`. Not consumed by the Node-side server.
 
-No `.env.example` exists; see `README.md` for the canonical list.
+No `.env.example` exists; see `README.md` and [`docs/configuration.md`](docs/configuration.md) for the canonical list.
 
 ## Code style
 
