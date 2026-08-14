@@ -120,7 +120,7 @@ The server supports the following environment variables:
 - `BRAVE_MCP_ENABLED_TOOLS`: When used, specifies a whitelist for supported tools
 - `BRAVE_MCP_DISABLED_TOOLS`: When used, specifies a blacklist for supported tools
 - `BRAVE_MCP_STATELESS`: HTTP stateless mode (default: "false"). Set to "true" when running on Amazon Bedrock AgentCore.
-- `BRAVE_MCP_AUTH_TOKEN`: Bearer token required on the HTTP `/mcp` route (default: unset = auth disabled). Strongly recommended whenever the HTTP transport is bound to a non-loopback host. Not used by the Cloudflare Worker, which authenticates with `MCP_AUTH_TOKEN` at the edge.
+- `BRAVE_MCP_AUTH_TOKEN`: Bearer token required on the HTTP `/mcp` route (default: unset = auth disabled). Strongly recommended whenever the HTTP transport is bound to a non-loopback host.
 - `BRAVE_MCP_ALLOWED_HOSTS`: Comma-separated extra `Host` header values accepted by the DNS-rebinding guard (HTTP transport).
 - `BRAVE_MCP_ALLOWED_ORIGINS`: Comma-separated `Origin` header allowlist for the DNS-rebinding guard (HTTP transport).
 
@@ -145,80 +145,13 @@ Options:
 
 > **Note:** `--enabled-tools` / `--disabled-tools` are whitespace-separated, while `--allowed-hosts` / `--allowed-origins` are comma-separated. See [`docs/configuration.md`](docs/configuration.md).
 
-## Cloudflare Workers deployment
-
-This fork is also deployed as a Cloudflare Worker + Container. The Worker entry point (`src/worker.ts`) terminates Bearer auth on the public surface and forwards to the containerized HTTP MCP server.
-
-### Routing topology
-
-| Caller | URL | Auth |
-| --- | --- | --- |
-| Public client (Claude Desktop, curl, etc.) | `https://mcp.memenow.xyz/brave/mcp` | `Authorization: Bearer ${MCP_AUTH_TOKEN}` |
-| Public health probe | `https://mcp.memenow.xyz/brave/ping` | none |
-| Internal Worker (same Cloudflare account) | `env.BRAVE_MCP.fetch(new Request("https://internal/internal/mcp", …))` | none — service binding bypasses the public route |
-| Anything else on the public surface | — | `404` |
-
-`workers.dev` is disabled (`workers_dev: false` in `wrangler.jsonc`), so the `/internal/*` path cannot leak through the default subdomain.
-
-### Required secrets
-
-Set these via `wrangler secret put` before `npm run cf:deploy`:
-
-- `BRAVE_API_KEY` — upstream Brave Search API key.
-- `MCP_AUTH_TOKEN` — shared secret for public Bearer auth. Generate with `openssl rand -hex 32` or equivalent.
-
-### Public client example
-
-```bash
-curl -X POST https://mcp.memenow.xyz/brave/mcp \
-  -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-### Service-binding example (other Worker in same account)
-
-In the calling Worker's `wrangler.jsonc`:
-
-```jsonc
-"services": [
-  { "binding": "BRAVE_MCP", "service": "brave-search-mcp-server" }
-]
-```
-
-In the calling Worker's code:
-
-```ts
-const res = await env.BRAVE_MCP.fetch(
-  new Request('https://internal/internal/mcp', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
-  })
-);
-```
-
-No `Authorization` header is required — service-binding calls do not traverse the public edge and therefore bypass the public route's Bearer check.
-
-### Local development
-
-```bash
-cat > .dev.vars <<'EOF'
-BRAVE_API_KEY = "<your-brave-key>"
-MCP_AUTH_TOKEN = "dev-token-123"
-EOF
-npm run cf:dev
-```
-
-The dev server listens on `http://localhost:8787`. Public paths are `/brave/mcp` and `/brave/ping`; the service-binding-only path is `/internal/mcp`.
-
 ## Further documentation
 
 This fork keeps deployment- and maintainer-specific documentation under [`docs/`](docs/):
 
-- [`docs/architecture.md`](docs/architecture.md) — module map, the three transports, and the request lifecycle.
+- [`docs/architecture.md`](docs/architecture.md) — module map, the two transports, and the request lifecycle.
 - [`docs/configuration.md`](docs/configuration.md) — authoritative environment variable and CLI flag reference.
-- [`docs/deployment.md`](docs/deployment.md) — STDIO, HTTP, Docker, and Cloudflare deployment procedures.
+- [`docs/deployment.md`](docs/deployment.md) — STDIO, HTTP, and Docker deployment procedures.
 - [`docs/security.md`](docs/security.md) — authentication model, DNS-rebinding protection, and known gaps.
 
 ## Installation

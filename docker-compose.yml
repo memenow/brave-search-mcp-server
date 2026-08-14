@@ -16,8 +16,11 @@ services:
       - BRAVE_MCP_LOG_LEVEL=info
       - BRAVE_MCP_ENABLED_TOOLS
       - BRAVE_MCP_DISABLED_TOOLS
+      - BRAVE_MCP_AUTH_TOKEN
+      - BRAVE_MCP_ALLOWED_HOSTS
+      - BRAVE_MCP_ALLOWED_ORIGINS
     init: true
     ports:
-      - 8080:8080
+      - "${BRAVE_MCP_PUBLISH_HOST:-127.0.0.1}:8080:8080"
     security_opt:
       - no-new-privileges:true

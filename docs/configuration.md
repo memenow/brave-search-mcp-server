@@ -38,7 +38,7 @@ The tool lists and the host/origin lists use **different delimiters**:
 
 Do not assume commas work for the tool lists, or spaces for the host/origin
 lists. This asymmetry is inherited behavior, not a bug to "fix" — see the note in
-`CLAUDE.md`.
+`AGENTS.md`.
 
 ## Validation rules
 
@@ -59,21 +59,3 @@ lists. This asymmetry is inherited behavior, not a bug to "fix" — see the note
 object into `createMcpServer({ config })`, which calls `setOptions()` to merge it
 into `state`. The HTTP-only knobs (`port`, `host`, auth token, allowed
 hosts/origins) are not part of the Smithery schema.
-
-## Cloudflare Worker configuration
-
-The Worker path is configured differently from the Node CLI:
-
-- **Secrets** are set with `wrangler secret put` and are never bundled:
-  - `BRAVE_API_KEY` — forwarded to the container via
-    `startAndWaitForPorts({ startOptions: { envVars } })`.
-  - `MCP_AUTH_TOKEN` — the public Bearer token verified at the edge on
-    `/brave/mcp`. This is **distinct** from `BRAVE_MCP_AUTH_TOKEN`; the container
-    itself runs without a Node-side bearer token because the Worker terminates
-    auth at the edge.
-- **Container env** (`BRAVE_MCP_TRANSPORT`, `BRAVE_MCP_PORT`, `BRAVE_MCP_HOST`) is
-  baked into `Dockerfile.cloudflare`.
-- **Routing, instances, and Durable Object migrations** live in `wrangler.jsonc`.
-
-See [deployment.md](deployment.md) for the full deploy procedure and
-[security.md](security.md) for what each token protects.

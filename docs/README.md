@@ -5,15 +5,15 @@ Maintainer-facing documentation for this fork of
 It complements, and does not duplicate, the two root guides:
 
 - [`../README.md`](../README.md) — user-facing install instructions, tool reference, and quick start.
-- [`../CLAUDE.md`](../CLAUDE.md) — repository conventions, commands, and gotchas for contributors.
+- [`../AGENTS.md`](../AGENTS.md) — repository conventions, commands, and gotchas for contributors.
 
 ## Contents
 
 | Document | Scope |
 | --- | --- |
-| [architecture.md](architecture.md) | Module map, the three transports, request lifecycle, and the tool contract. |
+| [architecture.md](architecture.md) | Module map, the two transports, request lifecycle, and the tool contract. |
 | [configuration.md](configuration.md) | Authoritative environment variable and CLI flag reference. |
-| [deployment.md](deployment.md) | Running the server over STDIO, HTTP, Docker, and Cloudflare Workers + Containers. |
+| [deployment.md](deployment.md) | Running the server over STDIO, HTTP, and Docker. |
 | [security.md](security.md) | Authentication model, DNS-rebinding protection, error sanitization, and known gaps. |
 
 ## Source of truth
@@ -23,7 +23,6 @@ references are:
 
 - `src/config.ts` — configuration schema, defaults, and CLI parsing.
 - `src/protocols/` — STDIO and HTTP transports plus the shared auth helpers.
-- `src/worker.ts` / `src/worker-auth.ts` — the Cloudflare Workers entry point.
 
 Re-derive values from those files rather than trusting prose. This fork tracks
 upstream closely, so the user-facing `README.md` intentionally stays near the

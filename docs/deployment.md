@@ -1,8 +1,8 @@
 # Deployment
 
-The same build runs in four shapes: STDIO (local/embedded), HTTP (standalone or
-Docker), and Cloudflare Workers + Containers. Pick the section that matches your
-target. For the full variable reference see [configuration.md](configuration.md);
+The Node runtime supports STDIO (local/embedded) and HTTP (standalone or Docker).
+Pick the section that matches your target. For the full variable reference see
+[configuration.md](configuration.md);
 for the auth model see [security.md](security.md).
 
 ## Prerequisites
@@ -71,12 +71,30 @@ docker run -i --rm -e BRAVE_API_KEY mcp/brave-search:latest
 ### Docker Compose
 
 `docker-compose.yml` runs the HTTP transport on port 8080 with hardened defaults
-(`cap_drop: all`, `no-new-privileges`, `init: true`). Provide `BRAVE_API_KEY`
-(and any optional `BRAVE_MCP_*` variables) in the environment:
+(`cap_drop: all`, `no-new-privileges`, `init: true`) and publishes the port on
+`127.0.0.1` by default. Provide `BRAVE_API_KEY` and any optional documented
+`BRAVE_MCP_*` variables in the environment; the Compose allowlist passes them
+through to the container:
 
 ```bash
-BRAVE_API_KEY=… docker-compose up --build
+BRAVE_API_KEY=… docker compose up --build
 ```
+
+To publish on another host interface, set `BRAVE_MCP_PUBLISH_HOST` explicitly.
+For example, publishing on every interface requires a bearer token and the
+corresponding DNS-rebinding allowlist:
+
+```bash
+BRAVE_API_KEY=… \
+BRAVE_MCP_PUBLISH_HOST=0.0.0.0 \
+BRAVE_MCP_AUTH_TOKEN="$(openssl rand -hex 32)" \
+BRAVE_MCP_ALLOWED_HOSTS=example.internal:8080 \
+docker compose up --build
+```
+
+`BRAVE_MCP_PUBLISH_HOST` controls only the host-side Docker port binding. The
+container continues to listen on `BRAVE_MCP_HOST=0.0.0.0` so the published port
+can reach the server.
 
 ### Amazon Bedrock AgentCore
 
@@ -87,69 +105,3 @@ explicitly:
 ```bash
 BRAVE_MCP_STATELESS=true BRAVE_MCP_TRANSPORT=http node dist/index.js
 ```
-
-## Cloudflare Workers + Containers
-
-The Worker (`src/worker.ts`) terminates Bearer auth at the edge and forwards to a
-container (a Durable Object running this codebase in HTTP mode). Configuration
-lives in `wrangler.jsonc`; the container image is `Dockerfile.cloudflare`.
-
-### One-time setup
-
-Set the two secrets before the first deploy (neither is bundled):
-
-```bash
-wrangler secret put BRAVE_API_KEY
-wrangler secret put MCP_AUTH_TOKEN   # public Bearer token; e.g. openssl rand -hex 32
-```
-
-### Deploy, develop, observe
-
-```bash
-npm run cf:deploy   # wrangler deploy
-npm run cf:dev      # wrangler dev — local Worker + container on http://localhost:8787
-npm run cf:tail     # wrangler tail — stream production logs
-```
-
-For local development, provide the secrets via `.dev.vars`:
-
-```bash
-cat > .dev.vars <<'EOF'
-BRAVE_API_KEY = "<your-brave-key>"
-MCP_AUTH_TOKEN = "dev-token-123"
-EOF
-npm run cf:dev
-```
-
-### Public routes
-
-| Caller | URL | Auth |
-| --- | --- | --- |
-| Public client | `https://mcp.memenow.xyz/brave/mcp` | `Authorization: Bearer ${MCP_AUTH_TOKEN}` |
-| Health probe | `https://mcp.memenow.xyz/brave/ping` | none |
-| Internal Worker (same account) | `env.BRAVE_MCP.fetch("https://internal/internal/mcp", …)` | none — service binding bypasses the public edge |
-| Anything else | — | `404` |
-
-`workers_dev: false` disables the default `*.workers.dev` subdomain, so
-`/internal/*` cannot leak through it. The `/internal/*` path is depended on by
-other Workers in the account — do not rename it without updating those consumers.
-
-Public client example:
-
-```bash
-curl -X POST https://mcp.memenow.xyz/brave/mcp \
-  -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-### Durable Object migration constraint
-
-The container is bound as a SQLite-backed Durable Object:
-
-```jsonc
-"migrations": [{ "tag": "v1", "new_sqlite_classes": ["BraveSearchContainer"] }]
-```
-
-Renaming or removing `BraveSearchContainer` requires a **new** migration tag.
-Never edit the existing `v1` entry — doing so corrupts the migration history.

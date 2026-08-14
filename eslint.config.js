@@ -9,7 +9,7 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', '.wrangler/**', '.smithery/**'],
+    ignores: ['dist/**', 'node_modules/**', '.smithery/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -18,12 +18,8 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
-      // src/index.ts + src/server.ts target Node; src/worker.ts targets the
-      // Workers runtime. The union below covers both without forcing per-file
-      // overrides for the shared modules under src/BraveAPI, src/tools, etc.
       globals: {
         ...globals.node,
-        ...globals.worker,
       },
     },
     rules: {

@@ -3,10 +3,6 @@
 .env
 .smithery
 
-# Cloudflare
-.wrangler/
-wrangler.toml.bak
-
 # Serena
 .serena/
 

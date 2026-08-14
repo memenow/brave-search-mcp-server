@@ -1,59 +1,98 @@
 ---
 name: sync-upstream
-description: Sync this fork with the configured `upstream` remote (memenow/brave-search-mcp-server, which itself tracks brave/brave-search-mcp-server). Use when the user says "sync upstream", "pull from upstream", "rebase on upstream", or asks to bring in the latest Brave Search MCP server changes.
+description: Review and integrate changes from the configured upstream main branch without restoring removed product-specific deployment assets. Use when the user asks to sync, merge, or inspect upstream Brave Search MCP server changes.
 ---
 
 # sync-upstream
 
-Goal: cleanly bring the latest upstream changes into local `main`, preserve fork-specific work (CLAUDE files, Cloudflare deploy assets, `.github/workflows/` additions), build, then push.
+Bring current upstream changes into a non-main task branch while preserving the
+generic Node, STDIO, HTTP, Docker, Smithery, package, and registry surfaces.
 
-## Pre-flight (always run first)
+This Skill does not authorize a push, pull request, default-branch mutation,
+release, package publication, image publication, or deployment.
 
-1. `git -C "$REPO" remote -v` — confirm `upstream` points at `https://github.com/memenow/brave-search-mcp-server.git`. If missing, stop and ask the user.
-2. `git status --porcelain` — must be empty. If not, stop and ask the user how to handle the dirty tree.
-3. `git rev-parse --abbrev-ref HEAD` — confirm we are on `main`. If not, ask before switching.
+## Preflight
 
-## Survey the delta
+1. Resolve and report `git remote get-url upstream` and
+   `git remote get-url origin`.
+2. Run `git status --short --branch`.
+3. Resolve the current branch and both current `HEAD` and `upstream/main` OIDs.
+4. Stop before integration if the worktree contains changes outside the user's
+   stated scope.
+5. Run `git fetch upstream --tags`.
+6. Re-resolve `upstream/main`; if its OID changed during the survey, regenerate
+   the comparison.
 
-4. `git fetch upstream --tags`
-5. `git log --oneline main..upstream/main` — list incoming commits.
-6. `git log --oneline upstream/main..main` — list fork-only commits (Bill's customizations).
-7. `git diff --stat main upstream/main -- ':!CLAUDE.md' ':!CLAUDE.local.md' ':!.claude/' ':!.github/workflows/' ':!wrangler.jsonc' ':!Dockerfile.cloudflare'` — file-level change scope outside fork-only areas.
+Do not integrate while checked out on `main`. Use a task branch created from the
+intended canonical base.
 
-Summarize for the user before merging:
-- Count and category of incoming commits (feat/fix/chore/deps).
-- Any incoming touches to files the fork has customized (especially `package.json`, `tsconfig*.json`, `src/index.ts`, `src/server.ts`, `README.md`).
-- Whether `package-lock.json` will need a regeneration.
+## Survey
 
-## Propose the merge strategy
+Collect and summarize:
 
-Default: **merge, not rebase.** Main reasons:
-- Fork pushes directly to `main`; a rebase would rewrite history Bill has already pushed.
-- Existing commit `a4b195c chore(deps): sync with upstream brave/brave-search-mcp-server` shows merge-style sync is the established pattern.
+```sh
+git log --oneline HEAD..upstream/main
+git log --oneline upstream/main..HEAD
+git diff --stat HEAD...upstream/main
+git diff --name-status HEAD...upstream/main
+```
 
-Surface the tradeoff: rebase would produce a linear history but force-pushes `main`; merge keeps history honest at the cost of an extra merge commit. Wait for confirmation if the incoming delta is non-trivial (>5 commits or any conflict-prone files).
+Identify changes to:
 
-## Execute
+- `package.json` and `package-lock.json`
+- TypeScript configuration
+- `src/index.ts`, `src/config.ts`, `src/server.ts`, and `src/protocols/`
+- tool schemas and response contracts
+- the generic `Dockerfile`
+- Smithery, package, registry, and marketplace metadata
+- repository instructions, documentation, and GitHub workflows
 
-8. `git merge upstream/main --no-ff -m "chore(deps): sync with upstream brave/brave-search-mcp-server"` — preserves the commit subject convention used in this repo.
-9. Resolve conflicts; prefer **upstream** for code in `src/**` (except `src/worker.ts`), **local** for `CLAUDE*.md`, `.claude/**`, `.github/workflows/**`, `wrangler.jsonc`, `Dockerfile.cloudflare`, `tsconfig.worker.json`. Ask before resolving anything in `package.json` or `tsconfig.json`.
-10. `npm install` — regenerate lockfile if `package.json` changed.
-11. `npm run format && npm run build` — must succeed before the sync is considered done.
-12. If `src/worker.ts` was touched (directly or via shared imports), also confirm `npx wrangler deploy --dry-run` builds; the root `tsc` does **not** typecheck the worker.
+Explicitly flag any incoming change that would recreate a Cloudflare Worker,
+Container, Durable Object, route, custom domain, Service Binding, Wrangler
+configuration, Cloudflare-specific Dockerfile, or Cloudflare deploy workflow.
+Those assets were intentionally removed and must remain absent unless the user
+makes a new explicit product decision.
 
-## Hand-off
+## Integration Decision
 
-Report to the user:
-- Incoming commits merged (count + bullet list).
-- Conflicts encountered and resolution choices.
-- Build status (Node + Worker).
-- Whether `package-lock.json` changed.
+Use an ordinary merge into the task branch; do not rebase or rewrite published
+history. Before creating a merge commit, present:
 
-Then ask whether to `git push origin main` (default for this fork's workflow) or open a PR.
+- the exact upstream and current branch OIDs;
+- incoming and task-branch-only commits;
+- expected conflicts;
+- package or public-contract changes;
+- the exact merge command and resulting external-workflow implications.
 
-## Things to NOT do
+Wait for explicit authorization for the merge commit. Do not apply blanket
+"ours" or "theirs" rules. Resolve each conflict from current source,
+documentation, tests, and the user's selected product scope.
 
-- Do not run `git rebase upstream/main` without explicit confirmation — it rewrites pushed history.
-- Do not silently drop fork-specific files during conflict resolution.
-- Do not run `npm install --force` or `--legacy-peer-deps` to mask peer-dep errors — surface them.
-- Do not bypass commit hooks with `--no-verify`.
+The expected command after authorization is:
+
+```sh
+git merge --no-ff upstream/main -m "chore(deps): sync with upstream brave/brave-search-mcp-server"
+```
+
+## Validation
+
+After integration:
+
+```sh
+npm ci
+npm run format:check
+npm run lint
+npm run build
+npm pack --dry-run
+docker build -t brave-search-mcp-server:upstream-sync .
+```
+
+Run focused STDIO and HTTP smoke tests when their paths changed. Verify that the
+removed product-specific Cloudflare deployment files and references remain
+absent.
+
+## Handoff
+
+Report the merged upstream commits, conflicts and resolutions, dependency or
+lockfile changes, validation results, and unrun checks. Publication must use a
+separately authorized pull-request workflow; never push directly to `main`.

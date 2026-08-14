@@ -10,8 +10,7 @@ const sha256 = (input: string): Buffer => createHash('sha256').update(input, 'ut
  *
  * Both sides are SHA-256 hashed before comparison so `timingSafeEqual` always
  * operates on equal-length 32-byte buffers. This removes the token-length side
- * channel that an early `Buffer.length` check would leave open, matching the
- * Web Crypto implementation in `worker-auth.ts`.
+ * channel that an early `Buffer.length` check would leave open.
  */
 export function verifyBearer(authorization: string | undefined, expected: string): boolean {
   if (!authorization) return false;
