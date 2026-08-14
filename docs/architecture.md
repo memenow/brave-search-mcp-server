@@ -1,9 +1,8 @@
 # Architecture
 
-The server exposes the Brave Search API as a set of MCP tools and serves them
-over three transports from one TypeScript (ESM) codebase. STDIO is the default;
-HTTP and the Cloudflare Worker reuse the same MCP server factory and tool
-implementations.
+The server exposes the Brave Search API as a set of MCP tools over two
+transports from one TypeScript (ESM) codebase. STDIO is the default, and the
+HTTP transport reuses the same MCP server factory and tool implementations.
 
 ## Module map
 
@@ -17,22 +16,14 @@ implementations.
 | `src/protocols/stdio.ts` | STDIO transport (`StdioServerTransport`). |
 | `src/protocols/http.ts` | Express app + `StreamableHTTPServerTransport`, the session map, and the request guards. |
 | `src/protocols/auth.ts` | Shared Node-side auth helpers: `verifyBearer`, `bearerAuth`, `dnsRebindingGuard`, `isLoopbackHost`. |
-| `src/worker.ts` | Cloudflare Worker `fetch` handler, the `ROUTES` table, and the `BraveSearchContainer` Durable Object. |
-| `src/worker-auth.ts` | Worker-side `verifyBearer`, implemented with Web Crypto (`crypto.subtle`). |
 | `src/utils.ts` | `stringify()` helper. Also defines `checkRateLimit()` — see _Reserved code_ below. |
 | `src/constants.ts` | `RATE_LIMIT` constant — referenced only by the unused `checkRateLimit()`. |
 | `src/helpers.ts` | `registerSigIntHandler()` — see _Reserved code_ below. |
 
-## Build targets
+## Build target
 
-Two TypeScript configurations build two different targets:
-
-- **Node target** — `tsconfig.json` compiles `src/` to `dist/` via `npm run build`
-  (`tsc` + `chmod +x dist/*.js`). It **excludes** `src/worker.ts` and
-  `src/worker-auth.ts`, so a Node build will not surface worker-only type errors.
-- **Worker target** — `tsconfig.worker.json` is used by `wrangler` (configured in
-  `wrangler.jsonc`) to bundle `src/worker.ts`. Validate worker changes with
-  `npm run cf:dev` or `wrangler deploy --dry-run`.
+`tsconfig.json` compiles the Node runtime under `src/` to `dist/` via
+`npm run build` (`tsc` + `chmod +x dist/*.js`).
 
 ## The MCP server factory
 
@@ -44,8 +35,8 @@ Two TypeScript configurations build two different targets:
 3. Iterates the tool registry, skips any tool excluded by
    `isToolPermittedByUser()` (the enable/deny lists), and calls `tool.register()`.
 
-Every transport calls this factory, so the tool surface is identical across
-STDIO, HTTP, and the Worker/Container path.
+Both transports call this factory, so the tool surface is identical across
+STDIO and HTTP.
 
 ## Tool contract
 
@@ -87,32 +78,6 @@ Each tool module exports a uniform shape (`src/tools/<tool>/index.ts`):
 
 On startup, if the server is bound to a non-loopback host without a bearer
 token, it logs a warning to stderr (the port is then reachable unauthenticated).
-
-### Cloudflare Worker + Container
-
-`src/worker.ts` `fetch()`:
-
-1. Look up `url.pathname` in `ROUTES`. Unknown paths get a generic `404`.
-2. If the route requires auth, verify `Authorization: Bearer` against
-   `MCP_AUTH_TOKEN` with `verifyBearer` (a missing token is treated as a `401`,
-   not a configuration error, to keep deployment state opaque).
-3. If `BRAVE_API_KEY` is unset, return a generic `503` (the same shape used for
-   backend failures) and log the cause to `console.error`.
-4. Rewrite the path to what the container serves (`/brave/mcp` → `/mcp`,
-   `/internal/mcp` → `/mcp`, `/brave/ping` → `/ping`).
-5. `getContainer(env.BRAVE_SEARCH_CONTAINER, 'default')`, then
-   `startAndWaitForPorts({ startOptions: { envVars: { BRAVE_API_KEY } } })`, then
-   `return await container.fetch(forwarded)`. The `await` is deliberate: it lets
-   the surrounding `catch` convert a post-readiness fetch rejection into the
-   generic `503` instead of an unhandled Worker error.
-
-The container runs this same codebase in HTTP mode — `Dockerfile.cloudflare`
-sets `BRAVE_MCP_TRANSPORT=http`, `BRAVE_MCP_PORT=8080`, `BRAVE_MCP_HOST=0.0.0.0`.
-
-> The Worker routes all traffic to a single container instance (`'default'`).
-> `wrangler.jsonc` sets `max_instances: 2` as the scaling ceiling, but the
-> current routing does not fan out across instances. See
-> [security.md](security.md) for the history of the removed fan-out logic.
 
 ## The Brave API client
 

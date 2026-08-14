@@ -30,14 +30,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-      # Group Cloudflare-related updates
-      cloudflare:
-        patterns:
-          - "@cloudflare/*"
-          - "wrangler"
-        update-types:
-          - "minor"
-          - "patch"
       # Group type definition updates
       types:
         patterns:

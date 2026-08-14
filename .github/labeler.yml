@@ -18,13 +18,11 @@ typescript:
     - any-glob-to-any-file:
       - '**/*.ts'
       - tsconfig.json
-      - tsconfig.worker.json
 
 docker:
   - changed-files:
     - any-glob-to-any-file:
       - Dockerfile
-      - Dockerfile.cloudflare
       - docker-compose.yml
       - .dockerignore
 
@@ -32,12 +30,6 @@ ci/cd:
   - changed-files:
     - any-glob-to-any-file:
       - .github/**
-
-cloudflare:
-  - changed-files:
-    - any-glob-to-any-file:
-      - wrangler.jsonc
-      - src/worker.ts
 
 api:
   - changed-files:
@@ -59,7 +51,6 @@ config:
     - any-glob-to-any-file:
       - src/config.ts
       - src/constants.ts
-      - wrangler.jsonc
       - tsconfig.json
 
 tests:
